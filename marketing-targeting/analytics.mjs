@@ -48,7 +48,7 @@ export function followUpState(lead, referenceDate) {
  * Empty selections impose no restriction. Missing fit is not the 'Unknown' label.
  */
 export function filterLeads(leads, filters = {}, referenceDate) {
-  const allowed = ['industry', 'customer_segment', 'lead_source', 'lead_status', 'priority', 'plastic_use_fit', 'follow_up_state'];
+  const allowed = ['company_search', 'industry', 'customer_segment', 'lead_source', 'lead_status', 'priority', 'plastic_use_fit', 'follow_up_state', 'relationship_type'];
   for (const field of Object.keys(filters)) {
     if (!allowed.includes(field)) throw new TypeError(`Unsupported filter: ${field}`);
   }
@@ -58,6 +58,10 @@ export function filterLeads(leads, filters = {}, referenceDate) {
     if (selection == null) return true;
     const values = Array.isArray(selection) ? selection : [selection];
     if (!values.length) return true;
+    if (field === 'company_search') {
+      const company = (lead.company_name ?? '').toLowerCase();
+      return values.some(term => company.includes(String(term).trim().toLowerCase()));
+    }
     const value = field === 'follow_up_state' ? followUpState(lead, referenceDate) : lead[field];
     return values.includes(value);
   }));
@@ -182,5 +186,94 @@ export function relationshipInsights(leads, referenceDate, currency = 'USD') {
     highest_value_industry: industryWithHighestOpenOpportunity(leads, currency),
     strong_fit_needing_contact: strongFitProspectsNeedingContact(leads, referenceDate),
     needing_qualification: prospectsNeedingQualification(leads),
+  };
+}
+
+/** The default relationship workload always excludes Won/Lost prospects. */
+export function filterTargetProspects(leads, filters = {}, referenceDate) {
+  return filterLeads(openTargetProspects(leads), filters, referenceDate);
+}
+
+/** Returns a new open-prospect array; stable ID breaks otherwise equal ties.
+ * Priority is considered before follow-up date in both modes. In follow-up-first
+ * mode, the follow-up category is considered before priority.
+ */
+export function sortTargetProspects(leads, referenceDate, mode = 'priority_first') {
+  dateOnly(referenceDate);
+  if (!['priority_first', 'follow_up_first'].includes(mode)) {
+    throw new TypeError('Sorting mode must be priority_first or follow_up_first.');
+  }
+  const priorityRank = { High: 0, Medium: 1, Low: 2 };
+  const followUpRank = { overdue: 0, due_today: 1, unscheduled: 2, upcoming: 3 };
+  // Compute and validate states before sorting, including single-record inputs.
+  const ranked = openTargetProspects(leads).map(lead => ({
+    lead,
+    priority: priorityRank[lead.priority] ?? 3,
+    followUp: followUpRank[followUpState(lead, referenceDate)],
+  }));
+  ranked.sort((a, b) => {
+    const priority = a.priority - b.priority;
+    const followUp = a.followUp - b.followUp;
+    const groupOrder = mode === 'follow_up_first' ? followUp || priority : priority || followUp;
+    if (groupOrder) return groupOrder;
+    const dateOrder = (a.lead.next_follow_up_date || '').localeCompare(b.lead.next_follow_up_date || '');
+    return dateOrder || a.lead.lead_id.localeCompare(b.lead.lead_id);
+  });
+  return ranked.map(item => item.lead);
+}
+
+export function targetCustomerSummary(leads, referenceDate) {
+  dateOnly(referenceDate);
+  const open = openTargetProspects(leads);
+  return {
+    open_target_prospects: open.length,
+    high_priority_open_prospects: filterLeads(open, { priority: 'High' }).length,
+    overdue_follow_ups: followUpsOverdue(open, referenceDate).length,
+    due_today_follow_ups: followUpsDueToday(open, referenceDate).length,
+    unscheduled_follow_ups: openLeadsMissingFollowUp(open).length,
+  };
+}
+
+// Descriptions explain potential targeting categories, not verified capabilities.
+const TARGET_SEGMENTS = [
+  ['Agriculture', 'Potential targets include irrigation, crop, and greenhouse businesses using plastic parts or containers; suitability requires verification.'],
+  ['Recycling', 'Potential targets include reclaimers and material processors; customer, supplier, or partnership direction requires clarification.'],
+  ['Manufacturing', 'Potential targets include businesses using plastic components or handling products; material and production fit require verification.'],
+];
+
+export function targetSegmentSummaries(leads, referenceDate, currency = 'USD') {
+  dateOnly(referenceDate);
+  return TARGET_SEGMENTS.map(([industry, description]) => {
+    const open = filterTargetProspects(leads, { industry }, referenceDate);
+    return {
+      industry,
+      ...pipelineSummary(open, currency),
+      high_priority_open_prospects: filterLeads(open, { priority: 'High' }).length,
+      needing_follow_up: prospectsNeedingFollowUp(open, referenceDate).length,
+      description,
+    };
+  });
+}
+
+/** Data only. Missing information stays null; an unmarked record is not
+ * evidence of an actual customer. Follow-up keys match existing filter keys.
+ */
+export function prospectDetailViewModel(lead, referenceDate) {
+  const fields = [
+    'lead_id', 'company_name', 'industry', 'customer_segment',
+    'plastic_application_need', 'domino_relevance', 'plastic_use_fit', 'fit_reason',
+    'priority', 'priority_reason', 'lead_source', 'relationship_type', 'lead_status',
+    'estimated_opportunity_value', 'currency', 'last_contact_date',
+    'next_follow_up_date', 'next_action',
+  ];
+  const isDemo = typeof lead.is_demo === 'boolean' ? lead.is_demo : null;
+  return {
+    ...Object.fromEntries(fields.map(field => [field, lead[field] ?? null])),
+    follow_up_state: followUpState(lead, referenceDate),
+    is_demo: isDemo,
+    demonstration_status: isDemo === true ? 'hypothetical' : isDemo === false ? 'not_marked_demo' : 'unknown',
+    demonstration_notice: isDemo === true
+      ? 'Hypothetical demonstration data — not actual Domino Plastics customer information.'
+      : null,
   };
 }

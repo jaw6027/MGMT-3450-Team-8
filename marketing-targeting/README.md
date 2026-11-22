@@ -67,8 +67,9 @@ needed. Reuse existing interactions to derive last contact when available.
   records count once; conflicting copies of an ID throw instead of choosing one.
   Inputs are not mutated. Returned record lists reference the original objects;
   treat those references as read-only.
-- `filterLeads` accepts `industry`, `customer_segment`, `lead_source`,
-  `lead_status`, `priority`, `plastic_use_fit`, and `follow_up_state`.
+- `filterLeads` accepts `company_search`, `industry`, `customer_segment`,
+  `lead_source`, `lead_status`, `priority`, `plastic_use_fit`, `follow_up_state`,
+  and `relationship_type`.
   Use a string or array; OR within each selection and AND across fields. Empty
   arrays/null impose no restriction. Values are case-sensitive. Unsupported
   filter fields throw. Apply filters once before aggregating.
@@ -109,6 +110,46 @@ needed. Reuse existing interactions to derive last contact when available.
 - `marketingInsights` and `relationshipInsights` return structured results,
   leaving wording, labels, colors, and components to the existing application.
   They do not calculate ROI, profit, acquisition cost, or historical conversion.
+
+## Target Customer Relationships data functions
+
+These extend the same module and shared records; no UI exists yet. They are
+intended for integration into the team's existing application.
+
+- `filterTargetProspects(leads, filters, referenceDate)` applies shared filters
+  to open prospects only. Use `filterLeads` for history including Won/Lost.
+  `company_search` matches case-insensitive company-name substrings, trims search
+  terms, and accepts one term or an OR array. Blank search means no restriction.
+  Other selections use exact values, with AND across fields as before.
+- `sortTargetProspects(leads, referenceDate, mode)` returns a new open-prospect
+  list. The default `priority_first` mode sorts High/Medium/Low, then
+  overdue/due_today/unscheduled/upcoming. Optional `follow_up_first` mode orders
+  those follow-up categories before priority. Within equal priority/state groups,
+  dates are earliest first, then stable lead ID. Missing/unrecognized priorities
+  follow Low. Neither mode mutates the input or includes closed records.
+- `targetCustomerSummary(leads, referenceDate)` returns open target count,
+  High-priority open count, overdue count, due-today count, and unscheduled count.
+  High-priority open count includes New/Contacted, unlike the separate Marketing
+  Analytics High-priority qualified/active count.
+- `targetSegmentSummaries(leads, referenceDate, currency)` returns Agriculture,
+  Recycling, and Manufacturing summaries, including zero-count industries. Each
+  includes `industry`, `open_leads`, `high_priority_open_prospects`,
+  `estimated_open_pipeline`, `needing_follow_up` (overdue plus due today), a
+  cautious targeting description, currency, and missing-value metadata.
+  Packaging and all other industries remain available through normal filters.
+- `relationshipInsights` reuses the existing calculated Agriculture, follow-up,
+  industry-value, Strong-fit, and qualification insights. No company list or
+  insight result is hard-coded. Fit availability rules above still apply.
+- `prospectDetailViewModel(lead, referenceDate)` returns a new flat data object
+  with shared field names, relationship details, currency, and `follow_up_state`.
+  Missing fields stay null. `is_demo: true` produces a `hypothetical` status and
+  an explicit demonstration notice. False means `not_marked_demo`, not verified
+  actual customer information; absent status remains `unknown`.
+
+For a working list, filter with `filterTargetProspects`, then call
+`sortTargetProspects` on the result. Pass the selected records to summary and
+insight functions when those should reflect current filters. Keep the original
+records in Brandon's data layer; these functions do not maintain another store.
 
 Before integration, confirm Brandon's status vocabulary, currency conventions,
 opportunity model, existing lead-management features, and data scope. Multiple

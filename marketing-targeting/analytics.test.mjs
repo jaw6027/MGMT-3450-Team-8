@@ -147,3 +147,107 @@ test('functions do not mutate supplied records or arrays', () => {
   assert.ok(Object.isFrozen(demoLeads));
   assert.ok(demoLeads.every(Object.isFrozen));
 });
+
+test('target workload summary retains approved relationship baseline', () => {
+  assert.deepEqual(analytics.targetCustomerSummary(demoLeads, DATE), {
+    open_target_prospects: 15,
+    high_priority_open_prospects: 7,
+    overdue_follow_ups: 4,
+    due_today_follow_ups: 3,
+    unscheduled_follow_ups: 2,
+  });
+  assert.equal(analytics.filterTargetProspects(demoLeads).length, 15);
+  assert.deepEqual(analytics.filterTargetProspects(demoLeads, { lead_status: ['Won', 'Lost'] }), []);
+  // All-record filtering still allows closed records for historical views.
+  assert.equal(analytics.filterLeads(demoLeads, { lead_status: ['Won', 'Lost'] }).length, 3);
+});
+
+test('company search and relationship filters combine with all shared selections', () => {
+  assert.deepEqual(ids(analytics.filterTargetProspects(demoLeads, {
+    company_search: ['  AMBER acre ', 'Loopstone'],
+    industry: ['Agriculture', 'Recycling'],
+    priority: ['High'], lead_status: ['Qualified', 'Proposal'],
+    customer_segment: ['Irrigation equipment', 'Plastics reclamation'],
+    lead_source: ['Referral'], plastic_use_fit: ['Possible'],
+    follow_up_state: ['overdue'], relationship_type: ['Potential customer', 'Undetermined'],
+  }, DATE)), ['L01', 'L05']);
+  assert.deepEqual(ids(analytics.filterTargetProspects(demoLeads, { company_search: 'loopstone', relationship_type: 'Potential customer' })), []);
+  assert.equal(analytics.filterTargetProspects(demoLeads, { company_search: '  ' }).length, 15);
+  assert.equal(analytics.filterTargetProspects(demoLeads, { company_search: 'missing company' }).length, 0);
+  assert.equal(analytics.filterTargetProspects([changed('L01', { company_name: null })], { company_search: 'amber' }).length, 0);
+});
+
+test('default target sorting follows priority, state, then earliest date', () => {
+  assert.deepEqual(ids(analytics.sortTargetProspects(demoLeads, DATE)), [
+    'L05', 'L01', 'L09', 'L03', 'L06', 'L13', 'L10',
+    'L14', 'L07', 'L16', 'L11', 'L02', 'L18', 'L04', 'L17',
+  ]);
+  // A later High-priority date still precedes an earlier Medium-priority date.
+  const varied = [changed('L01', { next_follow_up_date: '2026-11-21' }), changed('L14', { next_follow_up_date: '2026-11-01' })];
+  assert.deepEqual(ids(analytics.sortTargetProspects(varied, DATE)), ['L01', 'L14']);
+});
+
+test('follow-up-first sorting places urgency before priority', () => {
+  assert.deepEqual(ids(analytics.sortTargetProspects(demoLeads, DATE, 'follow_up_first')), [
+    'L05', 'L01', 'L09', 'L14', 'L03', 'L07', 'L16',
+    'L11', 'L04', 'L06', 'L13', 'L10', 'L02', 'L18', 'L17',
+  ]);
+  const varied = [demoLeads[5], demoLeads[13]];
+  assert.deepEqual(ids(analytics.sortTargetProspects(varied, DATE, 'follow_up_first')), ['L14', 'L06']);
+  assert.throws(() => analytics.sortTargetProspects([], DATE, 'invalid'), /Sorting mode/);
+  assert.throws(() => analytics.sortTargetProspects([changed('L01', { next_follow_up_date: '2026-02-30' })], DATE), /valid YYYY-MM-DD/);
+});
+
+test('segment summaries are derived from open shared records and preserve value availability', () => {
+  const summaries = analytics.targetSegmentSummaries(demoLeads, DATE);
+  assert.deepEqual(summaries.map(row => [row.industry, row.open_leads, row.high_priority_open_prospects, row.estimated_open_pipeline, row.needing_follow_up]), [
+    ['Agriculture', 4, 2, 140000, 2],
+    ['Recycling', 3, 2, 155000, 2],
+    ['Manufacturing', 3, 2, 190000, 1],
+  ]);
+  assert.ok(summaries.every(row => row.description.includes('Potential targets')));
+  const filtered = analytics.targetSegmentSummaries(analytics.filterLeads(demoLeads, { priority: 'High' }), DATE);
+  assert.equal(filtered[0].open_leads, 2);
+  assert.equal(filtered[0].estimated_open_pipeline, 100000);
+  const unknown = analytics.targetSegmentSummaries([changed('L01', { estimated_opportunity_value: null })], DATE);
+  assert.equal(unknown[0].value_available, false);
+  assert.equal(unknown[0].missing_estimates, 1);
+  assert.equal(unknown[1].open_leads, 0);
+  assert.equal(analytics.filterTargetProspects(demoLeads, { industry: 'Packaging' }).length, 2);
+});
+
+test('prospect detail model exposes relationship fields and explicit hypothetical status', () => {
+  const detail = analytics.prospectDetailViewModel(demoLeads[0], DATE);
+  for (const field of ['company_name', 'industry', 'customer_segment', 'plastic_application_need', 'domino_relevance', 'plastic_use_fit', 'fit_reason', 'priority', 'priority_reason', 'lead_source', 'relationship_type', 'lead_status', 'estimated_opportunity_value', 'last_contact_date', 'next_follow_up_date', 'next_action']) {
+    assert.equal(detail[field], demoLeads[0][field]);
+  }
+  assert.equal(detail.follow_up_state, 'overdue');
+  assert.equal(detail.is_demo, true);
+  assert.equal(detail.demonstration_status, 'hypothetical');
+  assert.match(detail.demonstration_notice, /not actual Domino Plastics customer information/);
+  assert.equal(analytics.prospectDetailViewModel(demoLeads[7], DATE).follow_up_state, 'closed');
+  const missing = analytics.prospectDetailViewModel({ lead_status: 'New' }, DATE);
+  assert.equal(missing.last_contact_date, null);
+  assert.equal(missing.estimated_opportunity_value, null);
+  assert.equal(missing.plastic_use_fit, null);
+  assert.equal(missing.is_demo, null);
+  assert.equal(missing.demonstration_status, 'unknown');
+  assert.equal(missing.demonstration_notice, null);
+  assert.equal(analytics.prospectDetailViewModel({ lead_status: 'New', is_demo: false }, DATE).demonstration_status, 'not_marked_demo');
+});
+
+test('target filtering, sorting, summaries, and details never mutate source data', () => {
+  const input = structuredClone(demoLeads);
+  const before = structuredClone(input);
+  analytics.filterTargetProspects(input, { company_search: 'Demo', relationship_type: 'Undetermined' });
+  const sorted = analytics.sortTargetProspects(input, DATE);
+  analytics.sortTargetProspects(input, DATE, 'follow_up_first');
+  analytics.targetCustomerSummary(input, DATE);
+  analytics.targetSegmentSummaries(input, DATE);
+  const detail = analytics.prospectDetailViewModel(input[0], DATE);
+  detail.company_name = 'Changed detail copy';
+  assert.notEqual(sorted, input);
+  assert.deepEqual(input, before);
+  assert.deepEqual(analytics.sortTargetProspects([], DATE), []);
+  assert.equal(analytics.targetCustomerSummary([], DATE).open_target_prospects, 0);
+});
