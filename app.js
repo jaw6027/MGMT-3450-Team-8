@@ -42,9 +42,26 @@ for(const i of industries){$('industry').add(new Option(i.name,i.name));$('indus
 for(const id of ['search','industry','status','due'])$(id).addEventListener('input',render);
 $('clear').onclick=()=>{$('search').value='';$('industry').value='';$('status').value='';$('due').checked=false;render()};
 function openEditor(r){editing=r?.id??null;$('dialog-title').textContent=r?'Edit fictional lead':'Add fictional lead';$('company-field').value=r?.company||'';$('industry-field').value=r?.industry||industries[0].name;$('status-field').value=r?.status||'New';$('contact-field').value=r?.contact||'';$('contact-field').max=today();$('follow-field').value=r?.follow||'';for(const k of Object.keys(crmDefaults))$(k+'-field').value=r?.[k]??'';$('delete').hidden=!r;$('editor').showModal();$('company-field').focus()}
-$('add').onclick=()=>openEditor();$('close').onclick=()=>$('editor').close();$('rows').onclick=e=>{const b=e.target.closest('button[data-id]');if(b)openEditor(leads.find(r=>r.id===b.dataset.id))};
+$('add').onclick=()=>openEditor();$('add-customer').onclick=()=>openEditor();$('close').onclick=()=>$('editor').close();$('rows').onclick=e=>{const b=e.target.closest('button[data-id]');if(b)openEditor(leads.find(r=>r.id===b.dataset.id))};
 $('form').onsubmit=e=>{e.preventDefault();const company=$('company-field').value.trim();if(!company){$('company-field').setCustomValidity('Enter a company name.');$('company-field').reportValidity();return}const value=$('opportunityValue-field').value;if(value!==''&&(!Number.isFinite(Number(value))||Number(value)<0))return;const r={...(leads.find(x=>x.id===editing)||{}),id:editing??crypto.randomUUID(),company,industry:$('industry-field').value,status:$('status-field').value,contact:$('contact-field').value,follow:$('follow-field').value,...Object.fromEntries(Object.keys(crmDefaults).map(k=>[k,$(k+'-field').value.trim()]))};if(editing!==null)leads=leads.map(x=>x.id===editing?r:x);else leads.push(r);save();$('editor').close()};$('company-field').oninput=()=>$('company-field').setCustomValidity('');
 $('delete').onclick=()=>{if(confirm('Delete this fictional lead?')){leads=leads.filter(r=>r.id!==editing);save();$('editor').close()}};
 $('reset').onclick=()=>{if(confirm('Replace browser changes with the original fictional sample data?')){leads=structuredClone(seed);save()}};
 $('export').onclick=()=>{const cell=v=>'"'+String(/^[=+\-@\t\r]/.test(v)?"'"+v:v).replaceAll('"','""')+'"';const text=[['FICTIONAL SAMPLE DATA - NOT DOMINO PLASTICS RECORDS'],['Company','Industry','Status','Last contact','Next follow-up','Contact name','Email','Phone','Interaction notes and next steps','Product interest (unverified)','Estimated opportunity value (USD, fictional)'],...filtered().map(r=>[r.company,r.industry,r.status,r.contact,r.follow,...Object.keys(crmDefaults).map(k=>r[k]??'')])].map(r=>r.map(cell).join(',')).join('\r\n');const a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.href=url;a.download='fictional-marketing-leads.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 render();
+
+// Hash navigation keeps each section on its own view and supports Back/Forward.
+const pageNames={overview:'Overview',customers:'Business leads',industries:'Target industries',guide:'Project guide'};
+function showPage(focus=false){
+ const requested=location.hash.slice(1),page=Object.hasOwn(pageNames,requested)?requested:'overview';
+ for(const section of document.querySelectorAll('[data-page]'))section.hidden=section.id!==page;
+ for(const link of document.querySelectorAll('nav a')){
+  const active=link.getAttribute('href')==='#'+page;
+  link.classList.toggle('selected',active);
+  if(active)link.setAttribute('aria-current','page');else link.removeAttribute('aria-current');
+ }
+ document.title=pageNames[page]+' • Polymer Prospect';
+ if(focus)$(page).focus({preventScroll:true});
+ window.scrollTo({top:0,behavior:'instant'});
+}
+window.addEventListener('hashchange',()=>showPage(true));
+showPage();
