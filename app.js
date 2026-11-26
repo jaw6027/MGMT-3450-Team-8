@@ -65,8 +65,13 @@ function renderCalendar(){
  const scheduled=leads.filter(r=>calendarStatuses.has(r.status)&&r.follow.startsWith(prefix));
  for(const button of $('calendar-status-filters').querySelectorAll('button')){
   const status=button.dataset.calendarStatus;
+  const total=status==='all'?leads.length:leads.filter(r=>r.status===status).length;
+  button.querySelector('.calendar-status-count').textContent=total;
+  button.setAttribute('aria-label',`${status==='all'?'All statuses':status}: ${total} total leads, all dates`);
   button.setAttribute('aria-pressed',String(status==='all'?calendarStatuses.size===statuses.length:calendarStatuses.has(status)));
  }
+ const selectedTotal=leads.filter(r=>calendarStatuses.has(r.status)).length;
+ $('calendar-selection-total').textContent=`${selectedTotal} total lead${selectedTotal===1?'':'s'} in selected statuses (all dates, including leads without a follow-up date) • ${scheduled.length} follow-up${scheduled.length===1?'':'s'} this month.`;
  const byDate=new Map();
  for(const lead of scheduled){if(!byDate.has(lead.follow))byDate.set(lead.follow,[]);byDate.get(lead.follow).push(lead)}
  const days=new Date(year,month+1,0).getDate(),offset=new Date(year,month,1).getDay();
