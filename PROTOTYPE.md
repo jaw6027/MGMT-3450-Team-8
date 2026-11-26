@@ -1,6 +1,6 @@
 # Demo months
 
-The in-memory fictional preview now covers the current month and six previous months, including year boundaries. Each monthly cohort has different stage-entry counts and explicit example work-hour entries. All sample dates are on or before today. Select a month in Pipeline progress with “Show fictional demo data” enabled. Demo records remain separate from saved leads, pipeline history and work logs. Historical demo descriptions below reflect earlier example sets.
+The in-memory fictional preview now covers the current month and six previous months, including year boundaries. Each monthly cohort has different stage-entry counts and explicit example work-hour entries. All sample dates are on or before today. Select a month in Pipeline progress with “Show fictional demo data” enabled. One-click example-month buttons expose all seven available demo months. Demo records remain separate from saved leads, pipeline history and work logs. Historical demo descriptions below reflect earlier example sets.
 
 ---
 

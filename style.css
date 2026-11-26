@@ -55,3 +55,5 @@ main>[data-page]:not(#overview){margin-top:24px}
 .time-table-wrap{max-height:280px;margin-top:12px}.prospect-time th,.prospect-time td{padding:10px;font-size:10px}.prospect-time td:first-child{font-weight:normal}.prospect-time .table-wrap{position:relative}
 
 .pipeline-demo-control{padding:0 20px 12px}.pipeline-demo-control label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:bold;color:var(--green);cursor:pointer}.pipeline-demo-control p{font-size:11px;line-height:1.6;margin-top:5px}.pipeline-notice.is-demo{background:#fff4df;color:#785616;border:1px solid #e4cf9a;font-weight:bold}
+
+.pipeline-demo-months{display:flex;flex-wrap:wrap;align-items:center;gap:7px;padding:14px 20px 0;font-size:11px}.pipeline-demo-months>span{color:var(--muted);margin-right:3px}.pipeline-demo-months button{font-size:11px;padding:6px 10px}.pipeline-demo-months button[aria-pressed="true"]{background:var(--green);color:white;border-color:var(--green)}

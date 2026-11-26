@@ -172,6 +172,12 @@ function pipelinePeriod(){
 }
 function renderPipeline(){
  const demo=showingPipelineDemo(),history=demo?pipelineDemoData().history:pipelineHistory,events=history?.events||[];
+ $('pipeline-demo-months').hidden=!demo;
+ const current=new Date();
+ $('pipeline-demo-months').innerHTML='<span>Example months:</span>'+Array.from({length:7},(_,i)=>{
+  const d=new Date(current.getFullYear(),current.getMonth()-6+i,1),value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  return `<button type="button" data-demo-month="${value}" aria-pressed="${value===$('pipeline-month').value}">${d.toLocaleDateString('en-US',{month:'short',year:'numeric'})}</button>`;
+ }).join('');
  const names=new Map(events.map(e=>[e.leadId,e.company]));
  if(!demo)for(const lead of leads)names.set(lead.id,lead.company);
  const {start,end}=pipelinePeriod(),fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
@@ -189,6 +195,11 @@ function renderPipeline(){
  $('pipeline-events').innerHTML=[...relevant].reverse().map(e=>`<tr><td>${esc(new Date(e.at).toLocaleString())}</td><td>${esc(names.get(e.leadId)||e.company)}</td><td>${e.from||'—'}</td><td>${e.to||'—'}</td><td>${activity[e.kind]}</td></tr>`).join('')||'<tr><td colspan="5">No recorded activity across prospects for this period. Earlier activity may be unknown.</td></tr>';
 }
 $('pipeline-month').addEventListener('change',renderPipeline);
+$('pipeline-demo-months').onclick=e=>{
+ const button=e.target.closest('button[data-demo-month]');if(!button)return;
+ const value=button.dataset.demoMonth;$('pipeline-month').value=value;renderPipeline();
+ $('pipeline-demo-months').querySelector(`[data-demo-month="${value}"]`).focus({preventScroll:true});
+};
 
 function save(reason='save'){try{localStorage.setItem(key,JSON.stringify(leads));recordPipeline(reason)}catch(e){$('storage-message').textContent='Could not save to this browser. Export your leads before leaving.'}render()}
 function filtered(){return leads.filter(r=>(!$('search').value||r.company.toLowerCase().includes($('search').value.toLowerCase()))&&(!$('industry').value||r.industry===$('industry').value)&&(!$('status').value||r.status===$('status').value)&&(!$('due').checked||isDue(r)))}
