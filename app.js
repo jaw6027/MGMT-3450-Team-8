@@ -1,4 +1,24 @@
 'use strict';
+// Theme preferences use a separate key and never alter lead records.
+const themeKey='polymer-prospect-theme-v1',systemTheme=window.matchMedia('(prefers-color-scheme: dark)');
+let chosenTheme=null;
+try{const saved=localStorage.getItem(themeKey);if(saved==='dark'||saved==='light')chosenTheme=saved}catch(e){}
+function applyTheme(theme){
+ document.documentElement.dataset.theme=theme;
+ document.getElementById('theme-toggle').setAttribute('aria-checked',String(theme==='dark'));
+}
+// The DOM is available because the application script is deferred (or bundled last).
+function setInitialTheme(){
+ const toggle=document.getElementById('theme-toggle');
+ document.documentElement.dataset.theme=chosenTheme||(systemTheme.matches?'dark':'light');
+ toggle.setAttribute('aria-checked',String(document.documentElement.dataset.theme==='dark'));
+ toggle.onclick=()=>{
+  chosenTheme=document.documentElement.dataset.theme==='dark'?'light':'dark';applyTheme(chosenTheme);
+  try{localStorage.setItem(themeKey,chosenTheme)}catch(e){}
+ };
+}
+setInitialTheme();
+systemTheme.addEventListener('change',e=>{if(!chosenTheme)applyTheme(e.matches?'dark':'light')});
 const industries=[{name:'Packaging',icon:'▣',idea:'Protective packaging & industrial liners'},{name:'Agriculture',icon:'♧',idea:'HDPE nursery pots & reusable harvest bins; LDPE irrigation tubing & agricultural film. Blend suitability requires testing.'},{name:'Construction',icon:'▱',idea:'Non-structural panels & protective products'},{name:'Manufacturing',icon:'⚙',idea:'Reusable bins & molded components'},{name:'Recycling',icon:'♲',idea:'HDPE collection bins & LDPE collection liners; recovered HDPE/LDPE feedstock for non-food-contact products. Validate sorting, contamination & blend specifications.'}];
 const seed=[['Aster Packaging Works','Packaging','Qualified','2026-11-02','2026-11-05'],['Meadowline Growers','Agriculture','Contacted','2026-11-01','2026-11-04'],['Ridgeform Materials','Construction','New','',''],['Northvale Industrial','Manufacturing','Proposal','2026-11-03','2026-11-09'],['Willow Wrap Concepts','Packaging','Contacted','2026-10-29','2026-11-05'],['Fieldcrest Nursery Supply','Agriculture','Qualified','2026-11-02','2026-11-06'],['Cobalt Container Studio','Packaging','New','',''],['Canyon Panel Works','Construction','Contacted','2026-10-28','2026-11-03'],['Oakfern Farm Products','Agriculture','New','',''],['Lumen Molded Goods','Manufacturing','Qualified','2026-11-04','2026-11-10'],['Clover Protective Pack','Packaging','Proposal','2026-11-01','2026-11-04'],['Sage Parcel Systems','Packaging','Closed','2026-10-24','']].map((r,i)=>({id:String(i),company:r[0],industry:r[1],status:r[2],contact:r[3],follow:r[4]}));
 // Optional CRM fields preserve the existing v1 browser-storage format.
