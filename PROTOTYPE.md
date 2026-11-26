@@ -1,3 +1,9 @@
+# Current pipeline controls
+
+The time-spent section and its log form are removed from the interface for now. Existing work-hour storage is neither modified nor deleted. Pipeline progress has one month button that expands to a 12-month selector with year navigation, then collapses after a selection. The separate demo-month shortcuts are removed. The stage chart spans the available width. Demo stage-entry data still covers the current month and six previous months. Historical implementation notes below refer to previous versions.
+
+---
+
 # Demo months
 
 The in-memory fictional preview now covers the current month and six previous months, including year boundaries. Each monthly cohort has different stage-entry counts and explicit example work-hour entries. All sample dates are on or before today. Select a month in Pipeline progress with “Show fictional demo data” enabled. One-click example-month buttons expose all seven available demo months. Demo records remain separate from saved leads, pipeline history and work logs. Historical demo descriptions below reflect earlier example sets.

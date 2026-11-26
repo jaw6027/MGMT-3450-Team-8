@@ -102,68 +102,8 @@ function pipelineDemoData(){
 }
 function showingPipelineDemo(){return $('pipeline-demo').checked}
 
-// Actual work time is entered explicitly and saved separately from leads/history.
-const timeLogKey=key+'-work-hours-v1';
-let timeLog={version:1,entries:[]},timeLogWarning='';
-function validWorkDate(value){
- if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
- const [year,month,day]=value.split('-').map(Number),d=new Date(year,month-1,day);
- return year>=1000&&d.getFullYear()===year&&d.getMonth()===month-1&&d.getDate()===day;
-}
-function validTimeLog(value){
- return value&&value.version===1&&Array.isArray(value.entries)&&value.entries.every(e=>e&&typeof e.id==='string'&&typeof e.leadId==='string'&&typeof e.company==='string'&&validWorkDate(e.date)&&Number.isInteger(e.hundredths)&&e.hundredths>0&&e.hundredths<=2400&&Number.isFinite(Date.parse(e.createdAt)));
-}
-try{
- const raw=localStorage.getItem(timeLogKey);
- if(raw!==null){const stored=JSON.parse(raw);if(!validTimeLog(stored))throw new Error('Invalid time log');timeLog=stored}
-}catch(e){timeLog=null;timeLogWarning='Existing time logs could not be read. They were left unchanged; new entries are paused.'}
-$('pipeline-demo').checked=!!pipelineHistory&&!!timeLog&&!timeLog.entries.length&&!(pipelineHistory?.events||[]).some(e=>e.kind==='moved'||e.kind==='added');
+$('pipeline-demo').checked=!!pipelineHistory&&!(pipelineHistory.events||[]).some(e=>e.kind==='moved'||e.kind==='added');
 $('pipeline-demo').addEventListener('change',renderPipeline);
-$('time-date').value=today();
-$('time-date').max=today();
-function renderProspectTime(start,end){
- const demo=showingPipelineDemo(),sample=demo?pipelineDemoData():null;
- const entries=demo?sample.entries:timeLog?.entries||[],names=new Map(entries.map(e=>[e.leadId,e.company]));
- const displayedLeads=demo?sample.prospects:leads;
- for(const lead of displayedLeads)names.set(lead.id,lead.company);
- const selected=$('time-lead').value;
- $('time-lead').innerHTML='<option value="">Choose a prospect</option>'+[...leads].sort((a,b)=>a.company.localeCompare(b.company)).map(lead=>`<option value="${esc(lead.id)}">${esc(lead.company)}</option>`).join('');
- if(leads.some(lead=>lead.id===selected))$('time-lead').value=selected;
- $('time-date').max=today();
- $('time-entry-form').hidden=demo;
- $('time-entry-form').querySelector('button').disabled=demo||!timeLog;
- $('time-storage-message').textContent=demo?'Fictional example hours. Switch off demo data to log your own time.':timeLogWarning;
- const inPeriod=entries.filter(e=>{const [y,m,d]=e.date.split('-').map(Number),at=new Date(y,m-1,d).getTime();return at>=start.getTime()&&at<end.getTime()});
- const totals=new Map(),periodTotals=new Map();
- for(const e of entries)totals.set(e.leadId,(totals.get(e.leadId)||0)+e.hundredths);
- for(const e of inPeriod)periodTotals.set(e.leadId,(periodTotals.get(e.leadId)||0)+e.hundredths);
- const total=inPeriod.reduce((sum,e)=>sum+e.hundredths,0),count=periodTotals.size;
- const hours=value=>(value/100).toFixed(2);
- $('prospect-time-metrics').innerHTML=[['Total hours this period',(demo||timeLog)?hours(total):'—'],['Prospects with logged time',(demo||timeLog)?count:'—'],['Average hours / prospect',(demo||timeLog)&&count?hours(total/count):'—']].map(([label,value])=>`<div>${label}<strong>${value}</strong></div>`).join('');
- $('time-average-definition').textContent=count?`Average = ${hours(total)} hours ÷ ${count} prospect${count===1?'':'s'} with logged time in this period. Prospects without logs are excluded.`:'No work hours logged for this period. Log actual hours to calculate an average; no hours are inferred from stage history.';
- const ids=[...names.keys()].sort((a,b)=>(periodTotals.get(b)||0)-(periodTotals.get(a)||0)||names.get(a).localeCompare(names.get(b)));
- $('prospect-time-rows').innerHTML=ids.map(id=>`<tr><td>${esc(names.get(id))}${displayedLeads.some(r=>r.id===id)?'':' (deleted)'}</td><td>${periodTotals.has(id)?hours(periodTotals.get(id)):'—'}</td><td>${totals.has(id)?hours(totals.get(id)):'—'}</td></tr>`).join('')||'<tr><td colspan="3">No prospects or logged time yet.</td></tr>';
- $('time-entry-rows').innerHTML=[...inPeriod].sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt.localeCompare(a.createdAt)).map(e=>`<tr><td>${date(e.date)}</td><td>${esc(names.get(e.leadId)||e.company)}</td><td>${hours(e.hundredths)}</td></tr>`).join('')||'<tr><td colspan="3">No time entries in this period.</td></tr>';
-}
-$('time-date').oninput=()=>$('time-date').setCustomValidity('');
-$('time-hours').oninput=()=>$('time-hours').setCustomValidity('');
-$('time-entry-form').onsubmit=e=>{
- e.preventDefault();
- if(showingPipelineDemo()||!timeLog)return;
- const lead=leads.find(r=>r.id===$('time-lead').value),workDate=$('time-date').value,hours=Number($('time-hours').value),hundredths=Math.round(hours*100);
- if(!lead)return;
- if(!validWorkDate(workDate)||workDate>today()){$('time-date').setCustomValidity('Choose a valid work date on or before today.');$('time-date').reportValidity();return}
- if(!Number.isFinite(hours)||hundredths<1||hundredths>2400||Math.abs(hours*100-hundredths)>0.000001){$('time-hours').setCustomValidity('Enter 0.01 to 24 hours, with up to two decimal places.');$('time-hours').reportValidity();return}
- try{
-  const raw=localStorage.getItem(timeLogKey),stored=raw===null?{version:1,entries:[]}:JSON.parse(raw);
-  if(!validTimeLog(stored))throw new Error('Existing log is invalid');
-  const updated={...stored,entries:[...stored.entries,{id:crypto.randomUUID(),leadId:lead.id,company:lead.company,date:workDate,hundredths,createdAt:new Date().toISOString()}]};
-  localStorage.setItem(timeLogKey,JSON.stringify(updated));timeLog=updated;
-  $('time-hours').value='';timeLogWarning='Time entry saved. Existing entries and lead data were preserved.';
- }catch(error){timeLogWarning='Time entry was not saved. Existing stored records were left unchanged; check browser storage before trying again.'}
- renderPipeline();
-};
-
 $('pipeline-month').value=today().slice(0,7);
 function pipelinePeriod(){
  const selected=$('pipeline-month').value||today().slice(0,7);
@@ -172,12 +112,7 @@ function pipelinePeriod(){
 }
 function renderPipeline(){
  const demo=showingPipelineDemo(),history=demo?pipelineDemoData().history:pipelineHistory,events=history?.events||[];
- $('pipeline-demo-months').hidden=!demo;
- const current=new Date();
- $('pipeline-demo-months').innerHTML='<span>Example months:</span>'+Array.from({length:7},(_,i)=>{
-  const d=new Date(current.getFullYear(),current.getMonth()-6+i,1),value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-  return `<button type="button" data-demo-month="${value}" aria-pressed="${value===$('pipeline-month').value}">${d.toLocaleDateString('en-US',{month:'short',year:'numeric'})}</button>`;
- }).join('');
+ renderPipelineMonthPicker();
  const names=new Map(events.map(e=>[e.leadId,e.company]));
  if(!demo)for(const lead of leads)names.set(lead.id,lead.company);
  const {start,end}=pipelinePeriod(),fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
@@ -186,20 +121,40 @@ function renderPipeline(){
  const covered=history&&start.getTime()>=Date.parse(history.startedAt);
  $('pipeline-range').textContent=`${fmt(start)} – ${fmt(new Date(end.getTime()-1))} • Local timezone${covered?'':' • Partial or unavailable history before tracking began'}`;
  $('pipeline-notice').classList.toggle('is-demo',demo);
- $('pipeline-notice').textContent=demo?'FICTIONAL DEMO — These stage changes and hours are made up to demonstrate the dashboard. They are not company results and are never saved into your records.':pipelineWarning||(history?`Tracking began ${new Date(history.startedAt).toLocaleString()}. Earlier stage dates are unknown. Starting records are observations, not conversions. History stays in this browser; keep the same file location/origin. Closed does not distinguish a won sale from a lost lead.`:'History is unavailable.');
+ $('pipeline-notice').textContent=demo?'FICTIONAL DEMO — These stage counts are made up to demonstrate the dashboard. They are not company results and are never saved into your records.':pipelineWarning||(history?`Tracking began ${new Date(history.startedAt).toLocaleString()}. Earlier stage dates are unknown. Starting records are observations, not conversions. History stays in this browser; keep the same file location/origin. Closed does not distinguish a won sale from a lost lead.`:'History is unavailable.');
  const counts=statuses.map(status=>new Set(entries.filter(e=>e.to===status).map(e=>e.leadId)).size);
  $('pipeline-chart').innerHTML=statuses.map((status,i)=>`<div class="bar-row" data-lead-status="${status}"><span>${status}</span><div class="track"><div class="bar" style="width:${counts[i]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[i]}</strong></div>`).join('');
  $('pipeline-chart').setAttribute('aria-label',statuses.map((status,i)=>`${status}: ${counts[i]} prospects entered this month`).join(', '));
- renderProspectTime(start,end);
  const activity={baseline:'First observed; earlier stage start unknown',sync:'Observed after reopening; exact change time unknown',reset:'Sample reset; not a sales movement',added:'Lead added',moved:'Status changed',removed:'Lead deleted; history retained'};
  $('pipeline-events').innerHTML=[...relevant].reverse().map(e=>`<tr><td>${esc(new Date(e.at).toLocaleString())}</td><td>${esc(names.get(e.leadId)||e.company)}</td><td>${e.from||'—'}</td><td>${e.to||'—'}</td><td>${activity[e.kind]}</td></tr>`).join('')||'<tr><td colspan="5">No recorded activity across prospects for this period. Earlier activity may be unknown.</td></tr>';
 }
-$('pipeline-month').addEventListener('change',renderPipeline);
-$('pipeline-demo-months').onclick=e=>{
- const button=e.target.closest('button[data-demo-month]');if(!button)return;
- const value=button.dataset.demoMonth;$('pipeline-month').value=value;renderPipeline();
- $('pipeline-demo-months').querySelector(`[data-demo-month="${value}"]`).focus({preventScroll:true});
+let pipelinePickerYear=new Date().getFullYear();
+function renderPipelineMonthPicker(){
+ const [year,month]=$('pipeline-month').value.split('-').map(Number);
+ $('pipeline-month-toggle').textContent=new Date(year,month-1,1).toLocaleDateString('en-US',{month:'long',year:'numeric'})+' ▾';
+ $('pipeline-picker-year').textContent=pipelinePickerYear;
+ $('pipeline-picker-months').innerHTML=Array.from({length:12},(_,i)=>{
+  const value=`${pipelinePickerYear}-${String(i+1).padStart(2,'0')}`;
+  return `<button type="button" data-pipeline-month="${value}" aria-pressed="${value===$('pipeline-month').value}">${new Date(pipelinePickerYear,i,1).toLocaleDateString('en-US',{month:'short'})}</button>`;
+ }).join('');
+}
+function closePipelineMonthPicker(){
+ $('pipeline-month-panel').hidden=true;$('pipeline-month-toggle').setAttribute('aria-expanded','false');
+}
+$('pipeline-month-toggle').onclick=()=>{
+ const open=$('pipeline-month-panel').hidden;
+ if(open){pipelinePickerYear=Number($('pipeline-month').value.slice(0,4));renderPipelineMonthPicker()}
+ $('pipeline-month-panel').hidden=!open;$('pipeline-month-toggle').setAttribute('aria-expanded',String(open));
 };
+$('pipeline-year-prev').onclick=()=>{pipelinePickerYear--;renderPipelineMonthPicker()};
+$('pipeline-year-next').onclick=()=>{pipelinePickerYear++;renderPipelineMonthPicker()};
+$('pipeline-picker-months').onclick=e=>{
+ const button=e.target.closest('button[data-pipeline-month]');if(!button)return;
+ $('pipeline-month').value=button.dataset.pipelineMonth;closePipelineMonthPicker();renderPipeline();$('pipeline-month-toggle').focus();
+};
+document.addEventListener('click',e=>{if(!e.target.closest('.pipeline-month-picker'))closePipelineMonthPicker()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('pipeline-month-panel').hidden){closePipelineMonthPicker();$('pipeline-month-toggle').focus()}});
+
 
 function save(reason='save'){try{localStorage.setItem(key,JSON.stringify(leads));recordPipeline(reason)}catch(e){$('storage-message').textContent='Could not save to this browser. Export your leads before leaving.'}render()}
 function filtered(){return leads.filter(r=>(!$('search').value||r.company.toLowerCase().includes($('search').value.toLowerCase()))&&(!$('industry').value||r.industry===$('industry').value)&&(!$('status').value||r.status===$('status').value)&&(!$('due').checked||isDue(r)))}
