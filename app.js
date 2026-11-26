@@ -173,27 +173,19 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('pipeline-month-
 function save(reason='save'){try{localStorage.setItem(key,JSON.stringify(leads));recordPipeline(reason)}catch(e){$('storage-message').textContent='Could not save to this browser. Export your leads before leaving.'}render()}
 function filtered(){return leads.filter(r=>(!$('search').value||r.company.toLowerCase().includes($('search').value.toLowerCase()))&&(!$('industry').value||r.industry===$('industry').value)&&(!$('status').value||r.status===$('status').value)&&(!$('due').checked||isDue(r)))}
 function renderIndustryTotals(list){
- const container=$('industry-totals'),reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+ const container=$('industry-totals');
  const existing=new Map([...container.children].map(row=>[row.dataset.industryTotal,row]));
- const positions=new Map([...existing].map(([name,row])=>[name,row.getBoundingClientRect().top]));
- const visible=container.getClientRects().length>0;
- for(const row of existing.values())for(const animation of row.getAnimations())animation.cancel();
- const ranked=industries.map((industry,index)=>({name:industry.name,index,count:list.filter(r=>r.industry===industry.name).length})).sort((a,b)=>b.count-a.count||a.index-b.index);
- const max=Math.max(1,...ranked.map(item=>item.count));
- for(const item of ranked){
+ const totals=industries.map(industry=>({name:industry.name,count:list.filter(r=>r.industry===industry.name).length}));
+ const max=Math.max(1,...totals.map(item=>item.count));
+ for(const item of totals){
   let row=existing.get(item.name);
   if(!row){
    row=document.createElement('div');row.dataset.industryTotal=item.name;
    row.innerHTML=`<dt>${esc(item.name)}</dt><dd><span class="industry-bar-track" aria-hidden="true"><span class="industry-bar-fill"></span></span><strong class="industry-bar-count"></strong></dd>`;
+   container.append(row);
   }
-  container.append(row);
   row.querySelector('.industry-bar-count').textContent=item.count;
   row.querySelector('.industry-bar-fill').style.width=`${item.count/max*100}%`;
- }
- // Keep the rows keyed to their industry so changes can animate from the old rank.
- for(const row of container.children){
-  const before=positions.get(row.dataset.industryTotal),after=row.getBoundingClientRect().top;
-  if(!reduced&&visible&&before!==undefined&&Math.abs(before-after)>1)row.animate([{transform:`translateY(${before-after}px)`},{transform:'translateY(0)'}],{duration:500,easing:'cubic-bezier(.2,.8,.2,1)'});
  }
 }
 function render(){const counts=industries.map(i=>leads.filter(r=>r.industry===i.name).length);const stats=[['Potential leads',leads.length,'Fictional business prospects','▤'],['Industries targeted',counts.filter(Boolean).length,'Represented in the lead list','◈'],['Active opportunities',leads.filter(r=>['Qualified','Proposal'].includes(r.status)).length,'Qualified or proposal stage','↗'],['Follow-ups needed',leads.filter(isDue).length,'Due today or overdue','◷']];$('stats').innerHTML=stats.map(s=>`<div class="stat"><div class="stat-top">${s[0]}<span class="stat-icon">${s[3]}</span></div><strong>${s[1].toString().padStart(2,'0')}</strong><small>${s[2]}</small></div>`).join('');$('chart').innerHTML=industries.map((i,n)=>`<div class="bar-row"><span>${i.name}</span><div class="track"><div class="bar" style="width:${counts[n]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[n]}</strong></div>`).join('');$('chart').setAttribute('aria-label',industries.map((i,n)=>`${i.name}: ${counts[n]} leads`).join(', '));$('total-badge').textContent=leads.length;const list=filtered();renderIndustryTotals(list);$('rows').innerHTML=list.map(r=>`<tr><td><div class="company"><span class="avatar" aria-hidden="true">${esc(r.company.split(' ').map(w=>w[0]).slice(0,2).join(''))}</span>${esc(r.company)}</div></td><td>${esc(r.industry)}</td><td><span class="pill ${r.status}">${r.status}</span></td><td>${date(r.contact)}</td><td class="${isDue(r)?'due':''}">${date(r.follow)}${isDue(r)?' • Due':''}</td><td><button class="edit" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.company)}">Edit ↗</button></td></tr>`).join('')||'<tr><td colspan="6">No leads match these filters. Try clearing them.</td></tr>';$('showing').textContent=`Showing ${list.length} of ${leads.length} fictional leads`;renderLeadViews()}
