@@ -1,10 +1,11 @@
 # Shared marketing and targeting analytics
 
-Framework-independent JavaScript for Kayleen's Marketing Analytics and Target
-Customer Relationships contributions. There is no interface, server, database,
-framework, or dependency installation. The initial dashboard integration covers
-only pipeline by source, pipeline by industry, and source performance comparison.
-Lead Status Distribution is deferred.
+Shared JavaScript for Kayleen's Marketing Analytics and Target Customer/Industry
+contributions, integrated into Brandon's existing static application. No framework,
+backend, database, build step, or runtime dependency installation is introduced.
+The additions cover source value/comparison, an industry count/value switch, and
+data-driven summaries on the existing Target industries page. Lead Status
+Distribution by source remains deferred; Brandon's overall status chart is intact.
 
 ## Demonstration data
 
@@ -15,7 +16,14 @@ Values are potential order estimates in USD, not revenue or profit. One lead
 represents one opportunity for this initial module. Won/Lost estimates remain in
 the records for context but are excluded from open pipeline.
 
-The three approved illustrative Possible-fit records are L01, L05, and L10.
+This 18-record fixture is for automated tests only and is **not** loaded by the
+browser application. The interface continues using Brandon's existing sample
+leads and browser-local saved records. Default sample objects are enriched with
+explicitly fictional sources, segments, and priorities. Saved records are not
+assigned those values; missing metadata stays blank/Unassigned. Only an explicit
+user-requested Reset replaces saved leads with the current defaults, as before.
+
+The three approved illustrative Possible-fit records in the test fixture are L01, L05, and L10.
 Other records retain Unknown fit. No Strong fit is invented. Recycling
 relationship types remain Undetermined pending clarification. Last-contact and
 follow-up dates intentionally left blank in the baseline remain null. Proposed
@@ -26,13 +34,74 @@ next actions and reasons are fictional demonstration enrichment, not evidence.
 From `/workspace/MGMT-3450-Team-8`, using Node.js 18 or newer:
 
 ```sh
-node --test marketing-targeting/analytics.test.mjs
+node --test marketing-targeting/*.test.mjs
 ```
 
 The tests use Node's built-in test runner and the fixed demonstration date.
 No package manifest or external packages are required.
 
-## Use with the eventual application
+An optional browser regression script uses an already installed Playwright and
+Chromium. Serve the repository with a static server (for example,
+`python3 -m http.server 8765 --bind 127.0.0.1`), then run:
+
+```sh
+node marketing-targeting/browser-regression.mjs http://127.0.0.1:8765
+```
+
+If those tools are outside Node's normal resolution path, set
+`PROSPECT_PLAYWRIGHT_MODULE` to the Playwright module's absolute path and
+`PROSPECT_CHROMIUM_EXECUTABLE` to the browser executable. This is an optional test
+tool requirement, not an application dependency. Tests use isolated contexts and
+fictional records, including a fixed November 22, 2026 clock.
+
+## Current application integration
+
+- `analytics-core.js` contains the single pure calculation implementation in a
+  classic-script wrapper, exposing `ProspectAnalytics`. `analytics.mjs` exports
+  those same functions for Node tests; calculations are not duplicated.
+- `lead-adapter.js` maps the current application model, exposing
+  `ProspectLeadAdapter`. Its `.mjs` facade exports the same adapter for tests.
+- `dashboard.js` renders only the approved additions into the existing pages.
+  It reads the existing `leads` array through a callback and never writes storage.
+- `index.html` loads these files as ordered classic deferred scripts before
+  `app.js`. No runtime imports/fetches or HTTP-only module loading is required;
+  the intended direct-file launch method remains supported by the code.
+
+Exact adapter mapping:
+
+| Application field | Analytical field |
+| --- | --- |
+| `id`, `company` | `lead_id`, `company_name` |
+| `industry`, `customerSegment` | `industry`, `customer_segment` |
+| `productInterest` | `plastic_application_need` |
+| `leadSource`, `status`, `priority` | `lead_source`, `lead_status`, `priority` |
+| `opportunityValue` | `estimated_opportunity_value` (number or null) |
+| `contact`, `follow`, `notes` | `last_contact_date`, `next_follow_up_date`, `notes` |
+
+The existing editor specifies USD, so the adapter supplies USD. Blank/whitespace
+estimates map to null, `"0"` maps to zero, and invalid/negative values throw an
+explicit analytics error without replacing records. Missing provenance remains
+unknown rather than marking arbitrary records as verified real or fictional.
+Closed remains Closed: no won/lost outcome is inferred. Open = New, Contacted,
+Qualified, Proposal; active = Qualified/Proposal. The original fixture's Won/Lost
+statuses remain useful closed-input tests but are not added to the application.
+
+Analytical filters (source, industry, segment, status, priority) are single-select,
+shared between the new source analysis and Target industries summaries, and also
+affect the industry **value** view. The original overview metrics, industry **count**
+view, status chart, table filters, CSV row selection, and calendar are unchanged.
+CSV appends the three new fields while retaining the original column order and
+fictional-data notice. Blank legacy fields display as Unassigned in analytics
+and the editor. Adding optional fields to defaults does not backfill them from
+industry or source assumptions. All five original industries remain available.
+
+`targetIndustryAnalysis` returns total leads, active opportunities, High-priority
+open prospects, known open value and missing-value metadata, plus the same
+metrics grouped by customer segment. Industry descriptions and suitability
+cautions are reused from Brandon's `industries` metadata. Existing `productInterest`
+values supply the prospect plastic-need details; there is no parallel lead store.
+
+## Pure-function usage
 
 ```js
 import { filterLeads, marketingInsights, relationshipInsights,
@@ -113,8 +182,10 @@ needed. Reuse existing interactions to derive last contact when available.
 
 ## Target Customer Relationships data functions
 
-These extend the same module and shared records; no UI exists yet. They are
-intended for integration into the team's existing application.
+These pure functions share records with the integrated marketing calculations.
+The current dashboard integration uses industry/segment summaries. The optional
+relationship working-list/detail helpers remain data-only utilities, not another
+CRM page or competing interface.
 
 - `filterTargetProspects(leads, filters, referenceDate)` applies shared filters
   to open prospects only. Use `filterLeads` for history including Won/Lost.
