@@ -180,7 +180,6 @@ function renderIndustryTotals(list){
  for(const row of existing.values())for(const animation of row.getAnimations())animation.cancel();
  const ranked=industries.map((industry,index)=>({name:industry.name,index,count:list.filter(r=>r.industry===industry.name).length})).sort((a,b)=>b.count-a.count||a.index-b.index);
  const max=Math.max(1,...ranked.map(item=>item.count));
- const colors=['#227653','#599575','#8cb399','#70939b','#9276b5'];
  for(const item of ranked){
   let row=existing.get(item.name);
   if(!row){
@@ -189,7 +188,6 @@ function renderIndustryTotals(list){
   }
   container.append(row);
   row.querySelector('.industry-bar-count').textContent=item.count;
-  row.querySelector('.industry-bar-fill').style.background=colors[item.index];
   row.querySelector('.industry-bar-fill').style.width=`${item.count/max*100}%`;
  }
  // Keep the rows keyed to their industry so changes can animate from the old rank.
