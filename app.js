@@ -186,12 +186,19 @@ $('reset').onclick=()=>{if(confirm('Replace browser changes with the original fi
 $('export').onclick=()=>{const cell=v=>'"'+String(/^[=+\-@\t\r]/.test(v)?"'"+v:v).replaceAll('"','""')+'"';const text=[['FICTIONAL SAMPLE DATA - NOT DOMINO PLASTICS RECORDS'],['Company','Industry','Status','Last contact','Next follow-up','Contact name','Email','Phone','Interaction notes and next steps','Product interest (unverified)','Estimated opportunity value (USD, fictional)'],...filtered().map(r=>[r.company,r.industry,r.status,r.contact,r.follow,...Object.keys(crmDefaults).map(k=>r[k]??'')])].map(r=>r.map(cell).join(',')).join('\r\n');const a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.href=url;a.download='fictional-marketing-leads.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 function renderLeadViews(){
  const counts=statuses.map(status=>leads.filter(r=>r.status===status).length);
- $('status-chart').innerHTML=statuses.map((status,i)=>`<div class="bar-row" data-lead-status="${status}"><span>${status}</span><div class="track"><div class="bar" style="width:${counts[i]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[i]}</strong></div>`).join('');
+ $('status-chart').innerHTML=statuses.map((status,i)=>`<button type="button" class="bar-row" data-lead-status="${status}" data-filter-status="${status}" aria-controls="rows" aria-label="Show ${counts[i]} ${status} leads in company list"><span>${status}</span><span class="track"><span class="bar" style="width:${counts[i]/Math.max(1,...counts)*100}%"></span></span><strong>${counts[i]}</strong></button>`).join('');
  $('status-chart').setAttribute('aria-label',statuses.map((status,i)=>`${status}: ${counts[i]} leads`).join(', '));
- $('status-summary').textContent=`${leads.length} total leads • Chart uses all leads. Calendar has its own status filters; filters below apply to the table and CSV.`;
+ $('status-summary').textContent=`${leads.length} total leads • Select a status above to view matching companies. Calendar has its own status filters; filters below apply to the table and CSV.`;
  renderCalendar();
  renderPipeline();
 }
+$('status-chart').onclick=e=>{
+ const button=e.target.closest('button[data-filter-status]');if(!button)return;
+ $('search').value='';$('industry').value='';$('due').checked=false;$('status').value=button.dataset.filterStatus;
+ render();
+ $('search').focus({preventScroll:true});
+ $('lead-filters').scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
+};
 function calendarDateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function renderCalendar(){
  const weekly=calendarView==='week',year=calendarMonth.getFullYear(),month=calendarMonth.getMonth();
