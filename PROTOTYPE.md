@@ -1,3 +1,17 @@
+# Pipeline progress tracking
+
+Business leads now includes daily, weekly (Monday–Sunday), monthly and yearly pipeline activity, a prospect selector, recorded stage-entry counts, a current-stage watchlist and a journey log. Periods use the browser’s local timezone; the date input selects a date within the requested period. The watchlist always describes the current open leads, independent of the historical period.
+
+Tracking starts when this version is first opened in a browser/origin/file location. Existing lead statuses are baseline observations with unknown prior history, not new leads or conversions. Subsequent saved status changes and additions are counted in their recorded periods. Notes-only edits do not create stage movements. Deletions retain journey history; explicit sample resets are labeled separately and excluded from activity metrics. Changes first noticed after reopening are observations with an unknown actual change time. Repeated entries into a stage count as separate entries, so entry counts are not conversion rates. Closed does not distinguish won from lost.
+
+Lead records retain the existing storage key and fields. Pipeline history uses the separate `polymer-prospect-v1-pipeline-history-v1` browser-storage key. Opening this version does not rewrite existing lead records to add history fields. Invalid existing history is preserved and recording pauses with a visible message. Stage times are measured from recorded events; ≥ indicates time since observation, with an unknown earlier start. No stage-age threshold or verified business problem is assumed.
+
+History is local to the browser and origin/file location; it is not a shared team audit log and is not included in the lead CSV or downloaded HTML. Keep the same origin/file location to retain it. Use fictional data for this prototype.
+
+Browser checks passed for baseline preservation, real saved status transitions, all period boundaries, prospect filtering, notes-only edits, sample reset exclusions, retained deletion history, reload persistence, mobile layout, and preservation of malformed existing history. Both repository files and standalone HTML were exercised.
+
+---
+
 # Agriculture and Recycling focus update
 
 Recycling is the fifth industry; four additional fictional leads bring a fresh sample database to 16 leads, 5 industries and 7 active opportunities. Follow-ups remain date-dependent. Agriculture and Recycling appear first in the existing target list, marked Priority focus, with HDPE/LDPE application examples. These examples are hypotheses requiring material, contamination, certification and blend-suitability checks, not approved product claims.

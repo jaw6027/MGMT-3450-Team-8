@@ -36,7 +36,93 @@ const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 const isDue=r=>r.status!=='Closed'&&r.follow&&r.follow<=today();
 const date=s=>s?new Date(s+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'—';
-function save(){try{localStorage.setItem(key,JSON.stringify(leads))}catch(e){$('storage-message').textContent='Could not save to this browser. Export your leads before leaving.'}render()}
+// Pipeline observations are stored separately; existing lead records are not migrated.
+const pipelineKey=key+'-pipeline-history-v1';
+let pipelineHistory=null,pipelineWarning='';
+function validPipeline(value){
+ return value&&value.version===1&&Number.isFinite(Date.parse(value.startedAt))&&Array.isArray(value.events)&&value.events.every(e=>e&&typeof e.leadId==='string'&&typeof e.company==='string'&&Number.isFinite(Date.parse(e.at))&&['baseline','added','moved','removed','reset','sync'].includes(e.kind)&&(e.from===null||statuses.includes(e.from))&&(e.to===null||statuses.includes(e.to)));
+}
+function storePipeline(){
+ try{localStorage.setItem(pipelineKey,JSON.stringify(pipelineHistory));pipelineWarning=''}
+ catch(e){pipelineWarning='Pipeline history could not be saved. This session’s activity may be lost when you leave.'}
+}
+function latestPipelineEvents(){
+ const latest=new Map();
+ for(const event of pipelineHistory?.events||[])latest.set(event.leadId,event);
+ return latest;
+}
+function recordPipeline(reason){
+ if(!pipelineHistory)return;
+ // Reload the separate log before appending so another tab’s saved events survive.
+ try{
+  const raw=localStorage.getItem(pipelineKey);
+  if(raw!==null){const stored=JSON.parse(raw);if(!validPipeline(stored))throw new Error('Invalid history');pipelineHistory=stored}
+ }catch(e){pipelineWarning='Existing pipeline history could not be read. It was left unchanged; history recording is paused.';pipelineHistory=null;return}
+ const latest=latestPipelineEvents(),now=new Date().toISOString();
+ const current=new Set(leads.map(r=>r.id));
+ let changed=false;
+ for(const lead of leads){
+  const prior=latest.get(lead.id);
+  if(prior?.to===lead.status)continue;
+  const kind=reason==='reset'?'reset':reason==='baseline'?'baseline':reason==='sync'?'sync':!prior||prior.to===null?'added':'moved';
+  pipelineHistory.events.push({leadId:lead.id,company:lead.company,from:prior?.to??null,to:lead.status,at:now,kind});changed=true;
+ }
+ for(const [id,prior] of latest)if(prior.to!==null&&!current.has(id)){
+  pipelineHistory.events.push({leadId:id,company:prior.company,from:prior.to,to:null,at:now,kind:reason==='reset'?'reset':reason==='sync'?'sync':'removed'});changed=true;
+ }
+ if(changed||reason==='baseline')storePipeline();
+}
+try{
+ const raw=localStorage.getItem(pipelineKey);
+ if(raw===null){pipelineHistory={version:1,startedAt:new Date().toISOString(),events:[]};recordPipeline('baseline')}
+ else{const stored=JSON.parse(raw);if(!validPipeline(stored))throw new Error('Invalid history');pipelineHistory=stored;recordPipeline('sync')}
+}catch(e){pipelineWarning='Pipeline history is unavailable or invalid. Existing stored data was left unchanged; history recording is paused.';pipelineHistory=null}
+$('pipeline-date').value=today();
+function pipelinePeriod(){
+ const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec($('pipeline-date').value||today());
+ const start=new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
+ const mode=$('pipeline-period').value;
+ if(mode==='week')start.setDate(start.getDate()-(start.getDay()+6)%7);
+ if(mode==='month')start.setDate(1);
+ if(mode==='year')start.setMonth(0,1);
+ const end=new Date(start);
+ if(mode==='day')end.setDate(end.getDate()+1);
+ if(mode==='week')end.setDate(end.getDate()+7);
+ if(mode==='month')end.setMonth(end.getMonth()+1);
+ if(mode==='year')end.setFullYear(end.getFullYear()+1);
+ return {start,end};
+}
+function renderPipeline(){
+ const history=pipelineHistory,events=history?.events||[],selected=$('pipeline-prospect').value;
+ const names=new Map(events.map(e=>[e.leadId,e.company]));
+ for(const lead of leads)names.set(lead.id,lead.company);
+ $('pipeline-prospect').innerHTML='<option value="">All prospects</option>'+[...names].sort((a,b)=>a[1].localeCompare(b[1])).map(([id,name])=>`<option value="${esc(id)}">${esc(name)}</option>`).join('');
+ if(names.has(selected))$('pipeline-prospect').value=selected;
+ const prospect=$('pipeline-prospect').value;
+ const {start,end}=pipelinePeriod(),fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+ const relevant=events.filter(e=>(!prospect||e.leadId===prospect)&&Date.parse(e.at)>=start.getTime()&&Date.parse(e.at)<end.getTime());
+ const moves=relevant.filter(e=>e.kind==='moved'),added=relevant.filter(e=>e.kind==='added');
+ const covered=history&&start.getTime()>=Date.parse(history.startedAt);
+ $('pipeline-range').textContent=`${fmt(start)} – ${fmt(new Date(end.getTime()-1))} • Local timezone${$('pipeline-period').value==='week'?' • Monday–Sunday':''}${covered?'':' • Partial or unavailable history before tracking began'}`;
+ $('pipeline-notice').textContent=pipelineWarning||(history?`Tracking began ${new Date(history.startedAt).toLocaleString()}. Earlier stage dates are unknown. Starting records are observations, not conversions. History stays in this browser; keep the same file location/origin. Closed does not distinguish a won sale from a lost lead.`:'History is unavailable.');
+ $('pipeline-metrics').innerHTML=[['Status changes',moves.length],['Prospects changing status',new Set(moves.map(e=>e.leadId)).size],['New leads recorded',added.length]].map(([label,count])=>`<div class="pipeline-metric">${label}<strong>${count}</strong></div>`).join('');
+ const counts=statuses.map(status=>[...moves,...added].filter(e=>e.to===status).length);
+ $('pipeline-chart').innerHTML=statuses.map((status,i)=>`<div class="bar-row" data-lead-status="${status}"><span>${status}</span><div class="track"><div class="bar" style="width:${counts[i]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[i]}</strong></div>`).join('');
+ $('pipeline-chart').setAttribute('aria-label',statuses.map((status,i)=>`${status}: ${counts[i]} recorded entries`).join(', '));
+ const latest=latestPipelineEvents(),now=Date.now();
+ const watch=leads.filter(r=>r.status!=='Closed'&&(!prospect||r.id===prospect)).map(r=>({lead:r,event:latest.get(r.id)})).sort((a,b)=>(Date.parse(a.event?.at)||now)-(Date.parse(b.event?.at)||now));
+ $('pipeline-watch').innerHTML=watch.map(({lead,event})=>{
+  const hours=event?Math.max(0,Math.floor((now-Date.parse(event.at))/3600000)):null;
+  const duration=hours===null?'Unknown':`${['baseline','sync','reset'].includes(event.kind)?'≥ ':''}${hours<48?hours+'h':Math.floor(hours/24)+'d'}`;
+  return `<button type="button" data-pipeline-lead="${esc(lead.id)}"><span>${esc(lead.company)}<small>${lead.status}</small></span><strong>${duration}</strong></button>`;
+ }).join('')||'<p class="pipeline-empty">No open prospects match this view.</p>';
+ const activity={baseline:'First observed; earlier stage start unknown',sync:'Observed after reopening; exact change time unknown',reset:'Sample reset; not a sales movement',added:'Lead added',moved:'Status changed',removed:'Lead deleted; history retained'};
+ $('pipeline-events').innerHTML=[...relevant].reverse().map(e=>`<tr><td>${esc(new Date(e.at).toLocaleString())}</td><td>${esc(names.get(e.leadId)||e.company)}</td><td>${e.from||'—'}</td><td>${e.to||'—'}</td><td>${activity[e.kind]}</td></tr>`).join('')||'<tr><td colspan="5">No recorded activity for this prospect and period. Earlier activity may be unknown.</td></tr>';
+}
+for(const id of ['pipeline-period','pipeline-date','pipeline-prospect'])$(id).addEventListener('change',renderPipeline);
+$('pipeline-watch').onclick=e=>{const button=e.target.closest('button[data-pipeline-lead]');if(button)openEditor(leads.find(r=>r.id===button.dataset.pipelineLead))};
+
+function save(reason='save'){try{localStorage.setItem(key,JSON.stringify(leads));recordPipeline(reason)}catch(e){$('storage-message').textContent='Could not save to this browser. Export your leads before leaving.'}render()}
 function filtered(){return leads.filter(r=>(!$('search').value||r.company.toLowerCase().includes($('search').value.toLowerCase()))&&(!$('industry').value||r.industry===$('industry').value)&&(!$('status').value||r.status===$('status').value)&&(!$('due').checked||isDue(r)))}
 function render(){const counts=industries.map(i=>leads.filter(r=>r.industry===i.name).length);const stats=[['Potential leads',leads.length,'Fictional business prospects','▤'],['Industries targeted',counts.filter(Boolean).length,'Represented in the lead list','◈'],['Active opportunities',leads.filter(r=>['Qualified','Proposal'].includes(r.status)).length,'Qualified or proposal stage','↗'],['Follow-ups needed',leads.filter(isDue).length,'Due today or overdue','◷']];$('stats').innerHTML=stats.map(s=>`<div class="stat"><div class="stat-top">${s[0]}<span class="stat-icon">${s[3]}</span></div><strong>${s[1].toString().padStart(2,'0')}</strong><small>${s[2]}</small></div>`).join('');$('chart').innerHTML=industries.map((i,n)=>`<div class="bar-row"><span>${i.name}</span><div class="track"><div class="bar" style="width:${counts[n]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[n]}</strong></div>`).join('');$('chart').setAttribute('aria-label',industries.map((i,n)=>`${i.name}: ${counts[n]} leads`).join(', '));$('total-badge').textContent=leads.length;const list=filtered();$('rows').innerHTML=list.map(r=>`<tr><td><div class="company"><span class="avatar" aria-hidden="true">${esc(r.company.split(' ').map(w=>w[0]).slice(0,2).join(''))}</span>${esc(r.company)}</div></td><td>${esc(r.industry)}</td><td><span class="pill ${r.status}">${r.status}</span></td><td>${date(r.contact)}</td><td class="${isDue(r)?'due':''}">${date(r.follow)}${isDue(r)?' • Due':''}</td><td><button class="edit" data-id="${esc(r.id)}" aria-label="Edit ${esc(r.company)}">Edit ↗</button></td></tr>`).join('')||'<tr><td colspan="6">No leads match these filters. Try clearing them.</td></tr>';$('showing').textContent=`Showing ${list.length} of ${leads.length} fictional leads`;renderLeadViews()}
 const priorityIndustries=['Agriculture','Recycling'];
@@ -48,7 +134,7 @@ function openEditor(r){editing=r?.id??null;$('dialog-title').textContent=r?'Edit
 $('add').onclick=()=>openEditor();$('add-customer').onclick=()=>openEditor();$('close').onclick=()=>$('editor').close();$('rows').onclick=e=>{const b=e.target.closest('button[data-id]');if(b)openEditor(leads.find(r=>r.id===b.dataset.id))};
 $('form').onsubmit=e=>{e.preventDefault();const company=$('company-field').value.trim();if(!company){$('company-field').setCustomValidity('Enter a company name.');$('company-field').reportValidity();return}const value=$('opportunityValue-field').value;if(value!==''&&(!Number.isFinite(Number(value))||Number(value)<0))return;const r={...(leads.find(x=>x.id===editing)||{}),id:editing??crypto.randomUUID(),company,industry:$('industry-field').value,status:$('status-field').value,contact:$('contact-field').value,follow:$('follow-field').value,...Object.fromEntries(Object.keys(crmDefaults).map(k=>[k,$(k+'-field').value.trim()]))};if(editing!==null)leads=leads.map(x=>x.id===editing?r:x);else leads.push(r);save();$('editor').close()};$('company-field').oninput=()=>$('company-field').setCustomValidity('');
 $('delete').onclick=()=>{if(confirm('Delete this fictional lead?')){leads=leads.filter(r=>r.id!==editing);save();$('editor').close()}};
-$('reset').onclick=()=>{if(confirm('Replace browser changes with the original fictional sample data?')){leads=structuredClone(seed);save()}};
+$('reset').onclick=()=>{if(confirm('Replace browser changes with the original fictional sample data?')){leads=structuredClone(seed);save('reset')}};
 $('export').onclick=()=>{const cell=v=>'"'+String(/^[=+\-@\t\r]/.test(v)?"'"+v:v).replaceAll('"','""')+'"';const text=[['FICTIONAL SAMPLE DATA - NOT DOMINO PLASTICS RECORDS'],['Company','Industry','Status','Last contact','Next follow-up','Contact name','Email','Phone','Interaction notes and next steps','Product interest (unverified)','Estimated opportunity value (USD, fictional)'],...filtered().map(r=>[r.company,r.industry,r.status,r.contact,r.follow,...Object.keys(crmDefaults).map(k=>r[k]??'')])].map(r=>r.map(cell).join(',')).join('\r\n');const a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.href=url;a.download='fictional-marketing-leads.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 function renderLeadViews(){
  const counts=statuses.map(status=>leads.filter(r=>r.status===status).length);
@@ -56,6 +142,7 @@ function renderLeadViews(){
  $('status-chart').setAttribute('aria-label',statuses.map((status,i)=>`${status}: ${counts[i]} leads`).join(', '));
  $('status-summary').textContent=`${leads.length} total leads • Chart uses all leads. Calendar has its own status filters; filters below apply to the table and CSV.`;
  renderCalendar();
+ renderPipeline();
 }
 function renderCalendar(){
  const year=calendarMonth.getFullYear(),month=calendarMonth.getMonth();
