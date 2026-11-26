@@ -9,3 +9,17 @@ dialog{max-height:90vh;overflow-y:auto}textarea{font:inherit;border:1px solid #d
 main>[data-page]:not(#overview){margin-top:24px}
 .lead-actions{display:flex;gap:10px;flex-wrap:wrap}
 [data-page]:focus{outline:none}
+
+/* Business leads charts and monthly follow-up planner. */
+.lead-visuals{display:grid;grid-template-columns:minmax(240px,.7fr) minmax(0,1.6fr);gap:20px;margin:6px 23px 24px;align-items:start}
+.lead-visuals>.panel{min-width:0}
+#status-chart{padding:0 22px 12px}#status-chart .bar-row{grid-template-columns:75px 1fr 25px;margin:22px 0;font-size:12px}
+#status-chart .bar-row:nth-child(1) .bar{background:#9276b5}#status-chart .bar-row:nth-child(2) .bar{background:#6585ab}#status-chart .bar-row:nth-child(3) .bar{background:#398563}#status-chart .bar-row:nth-child(4) .bar{background:#b18b38}#status-chart .bar-row:nth-child(5) .bar{background:#8a938d}
+.visual-foot{padding:12px 20px;margin:0;border-top:1px solid var(--line);font-size:11px;line-height:1.6}
+.calendar-controls{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 16px 16px;flex-wrap:wrap}.month-navigation{display:flex;align-items:center;gap:10px}.month-navigation h3{font-size:14px;min-width:120px;text-align:center;margin:0}.calendar-controls button{padding:5px 10px;font-size:12px}
+.calendar-scroll{overflow-x:auto}#follow-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));min-width:490px;padding:0 12px 12px}
+.calendar-weekday{font-size:10px;color:var(--muted);text-align:center;padding:7px 0}.calendar-day{min-height:78px;border-top:1px solid var(--line);border-right:1px solid var(--line);padding:5px;min-width:0}.calendar-day:nth-child(7n+1){border-left:1px solid var(--line)}.calendar-day:nth-last-child(-n+7){border-bottom:1px solid var(--line)}.calendar-day.empty{background:#f8faf7}.calendar-date{font-size:11px;display:inline-grid;place-items:center;min-width:22px;height:22px;border-radius:50%}.calendar-day.is-today .calendar-date{background:var(--green);color:white;font-weight:bold}.calendar-event{display:block;text-align:left;white-space:normal;overflow-wrap:anywhere;width:100%;font-size:10px;line-height:1.35;margin-top:4px;padding:4px;background:#eaf3ec;border:0;border-left:3px solid var(--green);border-radius:3px;color:#23583e}.calendar-event.overdue{background:#fff4df;border-left-color:#ac7b21;color:#785616}.calendar-event:hover{background:#dbeadf}
+@media(max-width:1200px){.lead-visuals{grid-template-columns:1fr}}
+@media(max-width:600px){.lead-visuals{margin-inline:12px;gap:16px}.calendar-controls{padding-inline:12px}}
+
+#customers .table-wrap{position:relative}
