@@ -15,7 +15,8 @@ const recyclingSamples=[
 ].map((r,i)=>({...crmDefaults,id:r[0],company:r[1],industry:'Recycling',status:r[2],contact:r[2]==='New'?'':'2026-11-12',follow:r[2]==='New'?'':'2026-11-20',contactName:['Casey Sample','Riley Example','Jordan Demo','Avery Sample'][i],email:`recycling${i+1}@example.com`,phone:`202-555-01${20+i}`,productInterest:r[3],opportunityValue:r[4],notes:'Fictional prospect. Next step: discuss feedstock consistency, contamination limits and application testing. Product suitability is unverified.'}));
 seed.push(...recyclingSamples);
 const $=id=>document.getElementById(id),key='polymer-prospect-v1';let leads=structuredClone(seed),editing=null;const statuses=['New','Contacted','Qualified','Proposal','Closed'];
-const calendarStatuses=new Set(statuses);
+const calendarStatusOptions=statuses.filter(status=>status!=='Closed');
+const calendarStatuses=new Set(calendarStatusOptions);
 let calendarMonth=new Date(new Date().getFullYear(),new Date().getMonth(),1);
 function valid(r){return r&&Object.keys(crmDefaults).every(k=>r[k]===undefined||typeof r[k]==='string')&&typeof r.id==='string'&&typeof r.company==='string'&&industries.some(i=>i.name===r.industry)&&statuses.includes(r.status)&&['contact','follow'].every(k=>typeof r[k]==='string'&&(!r[k]||/^\d{4}-\d{2}-\d{2}$/.test(r[k])))}
 try{
@@ -65,12 +66,12 @@ function renderCalendar(){
  const scheduled=leads.filter(r=>calendarStatuses.has(r.status)&&r.follow.startsWith(prefix));
  for(const button of $('calendar-status-filters').querySelectorAll('button')){
   const status=button.dataset.calendarStatus;
-  const total=status==='all'?leads.length:leads.filter(r=>r.status===status).length;
-  const selected=status==='all'?calendarStatuses.size===statuses.length:calendarStatuses.has(status);
+  const total=status==='all'?leads.filter(r=>calendarStatusOptions.includes(r.status)).length:leads.filter(r=>r.status===status).length;
+  const selected=status==='all'?calendarStatuses.size===calendarStatusOptions.length:calendarStatuses.has(status);
   const count=button.querySelector('.calendar-status-count');
   count.textContent=total;
   count.hidden=!selected;
-  button.setAttribute('aria-label',`${status==='all'?'All statuses':status}${selected?`: ${total} total leads, all dates`:''}`);
+  button.setAttribute('aria-label',`${status==='all'?'All open statuses':status}${selected?`: ${total} total leads, all dates`:''}`);
   button.setAttribute('aria-pressed',String(selected));
  }
  const selectedTotal=leads.filter(r=>calendarStatuses.has(r.status)).length;
@@ -88,14 +89,14 @@ function renderCalendar(){
  }
  $('follow-calendar').innerHTML=html;
  const unscheduled=leads.filter(r=>calendarStatuses.has(r.status)&&!r.follow).length;
- const selection=calendarStatuses.size===statuses.length?'All statuses':calendarStatuses.size?[...calendarStatuses].join(', '):'No statuses selected';
- $('calendar-summary').textContent=`${scheduled.length?`${scheduled.length} follow-up${scheduled.length===1?'':'s'}`:'No follow-ups'} in ${label}. ${selection}. ${unscheduled} matching lead${unscheduled===1?' has':'s have'} no follow-up date. Colors match the lead-status chart. Due / overdue follow-ups are labeled.`;
+ const selection=calendarStatuses.size===calendarStatusOptions.length?'All open statuses':calendarStatuses.size?[...calendarStatuses].join(', '):'No statuses selected';
+ $('calendar-summary').textContent=`${scheduled.length?`${scheduled.length} follow-up${scheduled.length===1?'':'s'}`:'No follow-ups'} in ${label}. ${selection}. ${unscheduled} matching lead${unscheduled===1?' has':'s have'} no follow-up date. Closed leads are excluded. Colors match the lead-status chart. Due / overdue follow-ups are labeled.`;
 }
 $('calendar-status-filters').onclick=e=>{
  const button=e.target.closest('button[data-calendar-status]');if(!button)return;
  const status=button.dataset.calendarStatus;
- if(status==='all'){for(const value of statuses)calendarStatuses.add(value)}
- else if(calendarStatuses.size===statuses.length){calendarStatuses.clear();calendarStatuses.add(status)}
+ if(status==='all'){for(const value of calendarStatusOptions)calendarStatuses.add(value)}
+ else if(calendarStatuses.size===calendarStatusOptions.length){calendarStatuses.clear();calendarStatuses.add(status)}
  else if(calendarStatuses.has(status))calendarStatuses.delete(status);
  else calendarStatuses.add(status);
  renderCalendar();
