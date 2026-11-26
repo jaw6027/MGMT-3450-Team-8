@@ -1,10 +1,20 @@
+# Logged work hours
+
+The current-stage watchlist has been replaced by manual work-time logging. Log a prospect, date of work (not in the future) and 0.01–24 decimal hours per entry. These are actual entered work hours, never elapsed stage time. Entries are appended under the separate `polymer-prospect-v1-work-hours-v1` storage key. Existing leads and pipeline events are not rewritten. Invalid pre-existing logs are preserved; logging pauses if they cannot be read.
+
+Weekly (Monday–Sunday), monthly and yearly pipeline periods also filter time totals. The summary shows hours logged in the period, distinct prospects with logged time, and total period hours divided by that prospect count. An empty period shows 0 hours and an unavailable average (—), rather than inventing time. The table shows each prospect’s hours in the selected period and across all logged dates; — means no entry. Closed or deleted prospects’ recorded effort remains in totals. Sample resets do not delete work logs. Logging a past work date is allowed because the date is explicitly supplied rather than inferred.
+
+Logs stay in the same browser/origin/file location, and are not embedded in HTML downloads or included in the existing lead CSV. The log form selects the prospect to assign a time entry; pipeline analytics still cover all prospects together. Entries currently append only; corrections require a separate change.
+
+---
+
 # Pipeline progress tracking
 
-Business leads now includes weekly (Monday–Sunday), monthly and yearly pipeline activity across all prospects, recorded stage-entry counts, a current-stage watchlist and a journey log. Periods use the browser’s local timezone; the date input selects a date within the requested period. The watchlist always describes the current open leads, independent of the historical period.
+Business leads now includes weekly (Monday–Sunday), monthly and yearly pipeline activity across all prospects, recorded stage-entry counts, a work-hours summary and a journey log. Periods use the browser’s local timezone; the date input selects a date within the requested period. Work-hour summaries follow the same selected period.
 
 Tracking starts when this version is first opened in a browser/origin/file location. Existing lead statuses are baseline observations with unknown prior history, not new leads or conversions. Subsequent saved status changes and additions are counted in their recorded periods. Notes-only edits do not create stage movements. Deletions retain journey history; explicit sample resets are labeled separately and excluded from activity metrics. Changes first noticed after reopening are observations with an unknown actual change time. Repeated entries into a stage count as separate entries, so entry counts are not conversion rates. Closed does not distinguish won from lost.
 
-Lead records retain the existing storage key and fields. Pipeline history uses the separate `polymer-prospect-v1-pipeline-history-v1` browser-storage key. Opening this version does not rewrite existing lead records to add history fields. Invalid existing history is preserved and recording pauses with a visible message. Stage times are measured from recorded events; ≥ indicates time since observation, with an unknown earlier start. No stage-age threshold or verified business problem is assumed.
+Lead records retain the existing storage key and fields. Pipeline history uses the separate `polymer-prospect-v1-pipeline-history-v1` browser-storage key. Opening this version does not rewrite existing lead records to add history fields. Invalid existing history is preserved and recording pauses with a visible message. No stage-age threshold or verified business problem is assumed.
 
 History is local to the browser and origin/file location; it is not a shared team audit log and is not included in the lead CSV or downloaded HTML. Keep the same origin/file location to retain it. Use fictional data for this prototype.
 
