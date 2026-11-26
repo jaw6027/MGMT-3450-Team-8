@@ -1,3 +1,9 @@
+# Demo months
+
+The in-memory fictional preview now covers the current month and six previous months, including year boundaries. Each monthly cohort has different stage-entry counts and explicit example work-hour entries. All sample dates are on or before today. Select a month in Pipeline progress with “Show fictional demo data” enabled. Demo records remain separate from saved leads, pipeline history and work logs. Historical demo descriptions below reflect earlier example sets.
+
+---
+
 # Simplified monthly pipeline
 
 Pipeline progress now uses one month picker. The chart counts distinct prospects entering each stage in that month, using recorded additions and status changes. A prospect entering the same stage twice in one month is counted once for that stage; it can count in multiple stages as it progresses. Baseline observations, reopen observations and sample resets do not count as entries. Removed summary cards: Status changes, Prospects changing status, and New leads recorded. The detailed activity log is collapsed by default. Work-time calculations and logging are unchanged, with the selected month supplying the reporting period. Saved leads, history and time logs are retained.

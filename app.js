@@ -79,16 +79,26 @@ try{
 }catch(e){pipelineWarning='Pipeline history is unavailable or invalid. Existing stored data was left unchanged; history recording is paused.';pipelineHistory=null}
 // Fictional preview data exists in memory only and never enters saved lead/log keys.
 function pipelineDemoData(){
- const now=new Date(),day=offset=>{const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+offset,10);return d};
- const monday=day(-(now.getDay()+6)%7),lastWeek=new Date(monday);lastWeek.setDate(lastWeek.getDate()-7);
- const lastMonth=new Date(now.getFullYear(),now.getMonth()-1,1,10),lastYear=new Date(now.getFullYear()-1,0,1,10);
+ const now=new Date(),prospects=[],events=[],entries=[];
+ const companies=['Aster Packaging Works','Meadowline Growers','Ridgeform Materials','Northvale Industrial','Fieldcrest Nursery Supply','Loopfern Recovery Works','Cedarcycle Film Recovery'];
  const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
- const prospects=[{id:'demo-aster',company:'Aster Packaging Works (demo)'},{id:'demo-meadow',company:'Meadowline Growers (demo)'},{id:'demo-ridge',company:'Ridgeform Materials (demo)'}];
- const event=(i,at,from,to,kind='moved')=>({leadId:prospects[i].id,company:prospects[i].company,at:at.toISOString(),from,to,kind});
- const events=[event(0,lastYear,null,'New','added'),event(1,lastMonth,null,'New','added'),event(2,lastMonth,null,'New','added'),event(0,lastWeek,'New','Contacted'),event(1,monday,'New','Contacted'),event(0,day(0),'Contacted','Qualified'),event(1,day(0),'Contacted','Proposal'),event(2,day(0),'New','Contacted')].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
- const work=(i,at,hundredths)=>({id:`demo-time-${i}-${at.getTime()}-${hundredths}`,leadId:prospects[i].id,company:prospects[i].company,date:iso(at),hundredths,createdAt:at.toISOString()});
- const entries=[work(0,monday,150),work(0,day(0),50),work(1,day(0),400),work(0,lastWeek,100),work(2,lastMonth,200),work(1,lastYear,300)];
- return {prospects,history:{version:1,startedAt:lastYear.toISOString(),events},entries};
+ for(let offset=6;offset>=0;offset--){
+  const month=new Date(now.getFullYear(),now.getMonth()-offset,1);
+  const monthLabel=month.toLocaleDateString('en-US',{month:'short',year:'numeric'});
+  const when=day=>new Date(Math.min(new Date(month.getFullYear(),month.getMonth(),offset===0?Math.min(day,now.getDate()):day,10).getTime(),now.getTime()));
+  for(let i=0;i<5+offset%3;i++){
+   const lead={id:`demo-${month.getFullYear()}-${month.getMonth()+1}-${i}`,company:`${companies[i]} · ${monthLabel} (demo)`};
+   prospects.push(lead);
+   const finalStage=(i+offset)%statuses.length;
+   for(let stage=0;stage<=finalStage;stage++){
+    const at=when(2+stage*5),hundredths=50+25*((i+stage+offset)%7);
+    events.push({leadId:lead.id,company:lead.company,from:stage?statuses[stage-1]:null,to:statuses[stage],at:at.toISOString(),kind:stage?'moved':'added'});
+    entries.push({id:`${lead.id}-time-${stage}`,leadId:lead.id,company:lead.company,date:iso(at),hundredths,createdAt:at.toISOString()});
+   }
+  }
+ }
+ events.sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
+ return {prospects,history:{version:1,startedAt:new Date(now.getFullYear(),now.getMonth()-6,1).toISOString(),events},entries};
 }
 function showingPipelineDemo(){return $('pipeline-demo').checked}
 
