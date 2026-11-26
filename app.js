@@ -200,25 +200,23 @@ function renderCalendar(){
  const end=weekly?new Date(start.getFullYear(),start.getMonth(),start.getDate()+7):new Date(year,month+1,1);
  const label=weekly?`${date(calendarDateKey(start))} – ${date(calendarDateKey(new Date(end.getFullYear(),end.getMonth(),end.getDate()-1)))}`:calendarMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
  $('calendar-month').textContent=label;
- $('calendar-prev').setAttribute('aria-label',weekly?'Previous week':'Previous month');
- $('calendar-next').setAttribute('aria-label',weekly?'Next week':'Next month');
- $('calendar-today').textContent=weekly?'This week':'This month';
  $('calendar-weekly').setAttribute('aria-pressed',String(weekly));$('calendar-monthly').setAttribute('aria-pressed',String(!weekly));
  $('follow-calendar').classList.toggle('weekly-view',weekly);
  $('follow-calendar').setAttribute('aria-label',`${weekly?'Weekly':'Monthly'} follow-ups for ${label}`);
- const scheduled=leads.filter(r=>calendarStatuses.has(r.status)&&r.follow>=calendarDateKey(start)&&r.follow<calendarDateKey(end));
+ const periodLeads=leads.filter(r=>calendarStatusOptions.includes(r.status)&&r.follow>=calendarDateKey(start)&&r.follow<calendarDateKey(end));
+ const scheduled=periodLeads.filter(r=>calendarStatuses.has(r.status));
  for(const button of $('calendar-status-filters').querySelectorAll('button')){
   const status=button.dataset.calendarStatus;
-  const total=status==='all'?leads.filter(r=>calendarStatusOptions.includes(r.status)).length:leads.filter(r=>r.status===status).length;
+  const total=status==='all'?periodLeads.length:periodLeads.filter(r=>r.status===status).length;
   const selected=status==='all'?calendarStatuses.size===calendarStatusOptions.length:calendarStatuses.has(status);
   const count=button.querySelector('.calendar-status-count');
   count.textContent=total;
   count.hidden=!selected;
-  button.setAttribute('aria-label',`${status==='all'?'All open statuses':status}${selected?`: ${total} total leads, all dates`:''}`);
+  button.setAttribute('aria-label',`${status==='all'?'All open statuses':status}${selected?`: ${total} leads with follow-ups this ${calendarView}`:''}`);
   button.setAttribute('aria-pressed',String(selected));
  }
- const selectedTotal=leads.filter(r=>calendarStatuses.has(r.status)).length;
- $('calendar-selection-total').innerHTML=`<strong>Selected total: ${selectedTotal} lead${selectedTotal===1?'':'s'}</strong><span>All dates, including leads without a follow-up date • ${scheduled.length} follow-up${scheduled.length===1?'':'s'} in this ${calendarView}.</span>`;
+ const selectedTotal=scheduled.length;
+ $('calendar-selection-total').innerHTML=`<strong>This ${calendarView} total: ${selectedTotal} lead${selectedTotal===1?'':'s'}</strong><span>Selected statuses with a follow-up date in the displayed ${calendarView}. Closed leads are excluded.</span>`;
 
  const byDate=new Map();
  for(const lead of scheduled){if(!byDate.has(lead.follow))byDate.set(lead.follow,[]);byDate.get(lead.follow).push(lead)}
@@ -246,15 +244,8 @@ $('calendar-status-filters').onclick=e=>{
  else calendarStatuses.add(status);
  renderCalendar();
 };
-function moveCalendar(direction){
- calendarMonth=calendarView==='week'?new Date(calendarMonth.getFullYear(),calendarMonth.getMonth(),calendarMonth.getDate()+7*direction):new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+direction,1);
- renderCalendar();
-}
-$('calendar-prev').onclick=()=>moveCalendar(-1);
-$('calendar-next').onclick=()=>moveCalendar(1);
-$('calendar-today').onclick=()=>{calendarMonth=new Date();renderCalendar()};
-$('calendar-weekly').onclick=()=>{calendarView='week';renderCalendar()};
-$('calendar-monthly').onclick=()=>{calendarView='month';renderCalendar()};
+$('calendar-weekly').onclick=()=>{calendarView='week';calendarMonth=new Date();renderCalendar()};
+$('calendar-monthly').onclick=()=>{calendarView='month';calendarMonth=new Date();renderCalendar()};
 $('follow-calendar').onclick=e=>{const button=e.target.closest('button[data-lead-id]');if(button)openEditor(leads.find(r=>r.id===button.dataset.leadId))};
 render();
 

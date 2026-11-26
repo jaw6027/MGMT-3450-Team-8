@@ -1,3 +1,9 @@
+# Current calendar controls and totals
+
+Calendar view controls are exactly “This week” and “This month”, without previous/next/reset controls. Both use the current local date. The status-button counts are prospects with follow-up dates inside that period, rather than all-time lead counts. Only selected status counts are visible; the combined period total sums those selected statuses. Closed leads and records without dates in the period are excluded. The all-leads chart and table retain their existing definitions. No saved records or dates are changed by switching views.
+
+---
+
 # Weekly follow-up calendar
 
 The calendar starts in Weekly view (Monday–Sunday). Monthly expands the date grid; previous/next and This week/This month adapt to the view. Status filtering and Closed exclusions apply to both.
