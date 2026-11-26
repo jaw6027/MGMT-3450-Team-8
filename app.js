@@ -14,10 +14,17 @@ const recyclingSamples=[
  ['sample-recycling-4','Greenarc Materials Sorting','Proposal','Non-food-contact recycled plastic components','4000']
 ].map((r,i)=>({...crmDefaults,id:r[0],company:r[1],industry:'Recycling',status:r[2],contact:r[2]==='New'?'':'2026-11-12',follow:r[2]==='New'?'':'2026-11-20',contactName:['Casey Sample','Riley Example','Jordan Demo','Avery Sample'][i],email:`recycling${i+1}@example.com`,phone:`202-555-01${20+i}`,productInterest:r[3],opportunityValue:r[4],notes:'Fictional prospect. Next step: discuss feedstock consistency, contamination limits and application testing. Product suitability is unverified.'}));
 seed.push(...recyclingSamples);
+// Add separate fictional examples for this week's calendar; never change saved dates.
+const sampleWeekStart=new Date();sampleWeekStart.setHours(12,0,0,0);sampleWeekStart.setDate(sampleWeekStart.getDate()-(sampleWeekStart.getDay()+6)%7);
+const weeklyFollowupSamples=[['Demo Orchard Containers','Agriculture','New',0],['Demo Circular Film Co.','Recycling','Contacted',1],['Demo Harvest Plastics','Agriculture','Qualified',3],['Demo Reuse Packaging','Packaging','Proposal',4]].map((row,i)=>{
+ const follow=new Date(sampleWeekStart);follow.setDate(follow.getDate()+row[3]);
+ return {...crmDefaults,id:`sample-weekly-followup-${i+1}`,company:row[0],industry:row[1],status:row[2],contact:'',follow:`${follow.getFullYear()}-${String(follow.getMonth()+1).padStart(2,'0')}-${String(follow.getDate()).padStart(2,'0')}`,notes:'Fictional calendar example added for this week. Not an actual customer or appointment.'};
+});
+seed.push(...weeklyFollowupSamples);
 const $=id=>document.getElementById(id),key='polymer-prospect-v1';let leads=structuredClone(seed),editing=null;const statuses=['New','Contacted','Qualified','Proposal','Closed'];
 const calendarStatusOptions=statuses.filter(status=>status!=='Closed');
 const calendarStatuses=new Set(calendarStatusOptions);
-let calendarMonth=new Date(new Date().getFullYear(),new Date().getMonth(),1);
+let calendarView='week',calendarMonth=new Date();
 function valid(r){return r&&Object.keys(crmDefaults).every(k=>r[k]===undefined||typeof r[k]==='string')&&typeof r.id==='string'&&typeof r.company==='string'&&industries.some(i=>i.name===r.industry)&&statuses.includes(r.status)&&['contact','follow'].every(k=>typeof r[k]==='string'&&(!r[k]||/^\d{4}-\d{2}-\d{2}$/.test(r[k])))}
 try{
  const raw=localStorage.getItem(key),saved=JSON.parse(raw);
@@ -30,6 +37,13 @@ try{
   // Store records before the marker; stable IDs prevent duplicates if interrupted.
   localStorage.setItem(key,JSON.stringify(leads));
   localStorage.setItem(updateKey,'done');
+ }
+ const weeklyUpdateKey=key+'-weekly-followups-1';
+ if(localStorage.getItem(weeklyUpdateKey)!=='done'){
+  const occupied=new Set(leads.map(r=>r.id));
+  for(const sample of weeklyFollowupSamples)if(!occupied.has(sample.id)){leads.push(structuredClone(sample));occupied.add(sample.id)}
+  localStorage.setItem(key,JSON.stringify(leads));
+  localStorage.setItem(weeklyUpdateKey,'done');
  }
 }catch(e){$('storage-message').textContent='Browser storage unavailable or invalid. Existing stored data was not replaced. Export any displayed changes before leaving.'}
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -178,13 +192,21 @@ function renderLeadViews(){
  renderCalendar();
  renderPipeline();
 }
+function calendarDateKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function renderCalendar(){
- const year=calendarMonth.getFullYear(),month=calendarMonth.getMonth();
- const label=calendarMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+ const weekly=calendarView==='week',year=calendarMonth.getFullYear(),month=calendarMonth.getMonth();
+ const start=new Date(year,month,weekly?calendarMonth.getDate():1);
+ if(weekly)start.setDate(start.getDate()-(start.getDay()+6)%7);
+ const end=weekly?new Date(start.getFullYear(),start.getMonth(),start.getDate()+7):new Date(year,month+1,1);
+ const label=weekly?`${date(calendarDateKey(start))} – ${date(calendarDateKey(new Date(end.getFullYear(),end.getMonth(),end.getDate()-1)))}`:calendarMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
  $('calendar-month').textContent=label;
- $('follow-calendar').setAttribute('aria-label',`Follow-ups for ${label}`);
- const prefix=`${year}-${String(month+1).padStart(2,'0')}-`;
- const scheduled=leads.filter(r=>calendarStatuses.has(r.status)&&r.follow.startsWith(prefix));
+ $('calendar-prev').setAttribute('aria-label',weekly?'Previous week':'Previous month');
+ $('calendar-next').setAttribute('aria-label',weekly?'Next week':'Next month');
+ $('calendar-today').textContent=weekly?'This week':'This month';
+ $('calendar-weekly').setAttribute('aria-pressed',String(weekly));$('calendar-monthly').setAttribute('aria-pressed',String(!weekly));
+ $('follow-calendar').classList.toggle('weekly-view',weekly);
+ $('follow-calendar').setAttribute('aria-label',`${weekly?'Weekly':'Monthly'} follow-ups for ${label}`);
+ const scheduled=leads.filter(r=>calendarStatuses.has(r.status)&&r.follow>=calendarDateKey(start)&&r.follow<calendarDateKey(end));
  for(const button of $('calendar-status-filters').querySelectorAll('button')){
   const status=button.dataset.calendarStatus;
   const total=status==='all'?leads.filter(r=>calendarStatusOptions.includes(r.status)).length:leads.filter(r=>r.status===status).length;
@@ -196,22 +218,24 @@ function renderCalendar(){
   button.setAttribute('aria-pressed',String(selected));
  }
  const selectedTotal=leads.filter(r=>calendarStatuses.has(r.status)).length;
- $('calendar-selection-total').innerHTML=`<strong>Selected total: ${selectedTotal} lead${selectedTotal===1?'':'s'}</strong><span>All dates, including leads without a follow-up date • ${scheduled.length} follow-up${scheduled.length===1?'':'s'} this month.</span>`;
+ $('calendar-selection-total').innerHTML=`<strong>Selected total: ${selectedTotal} lead${selectedTotal===1?'':'s'}</strong><span>All dates, including leads without a follow-up date • ${scheduled.length} follow-up${scheduled.length===1?'':'s'} in this ${calendarView}.</span>`;
+
  const byDate=new Map();
  for(const lead of scheduled){if(!byDate.has(lead.follow))byDate.set(lead.follow,[]);byDate.get(lead.follow).push(lead)}
- const days=new Date(year,month+1,0).getDate(),offset=new Date(year,month,1).getDay();
- let html=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="calendar-weekday">${d}</div>`).join('');
- for(let i=0;i<Math.ceil((offset+days)/7)*7;i++){
-  const day=i-offset+1;
-  if(day<1||day>days){html+='<div class="calendar-day empty" aria-hidden="true"></div>';continue}
-  const iso=prefix+String(day).padStart(2,'0');
+ const offset=(start.getDay()+6)%7,days=new Date(year,month+1,0).getDate();
+ const displayStart=new Date(start);if(!weekly)displayStart.setDate(displayStart.getDate()-offset);
+ let html=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d=>`<div class="calendar-weekday">${d}</div>`).join('');
+ const cells=weekly?7:Math.ceil((offset+days)/7)*7;
+ for(let i=0;i<cells;i++){
+  const d=new Date(displayStart.getFullYear(),displayStart.getMonth(),displayStart.getDate()+i),iso=calendarDateKey(d);
+  if(!weekly&&(d<start||d>=end)){html+='<div class="calendar-day empty" aria-hidden="true"></div>';continue}
   const events=(byDate.get(iso)||[]).sort((a,b)=>a.company.localeCompare(b.company));
-  html+=`<div class="calendar-day${iso===today()?' is-today':''}"><time class="calendar-date" datetime="${iso}"${iso===today()?' aria-current="date"':''}>${day}</time>${events.map(r=>`<button class="calendar-event${isDue(r)?' overdue':''}" data-lead-id="${esc(r.id)}" data-lead-status="${r.status}" aria-label="${esc(r.company)} — ${r.status}, follow-up ${date(iso)}${isDue(r)?', due or overdue':''}">${esc(r.company)}<span class="calendar-event-status">${r.status}${isDue(r)?' · Due / overdue':''}</span></button>`).join('')}</div>`;
+  html+=`<div class="calendar-day${iso===today()?' is-today':''}"><time class="calendar-date" datetime="${iso}" aria-label="${date(iso)}"${iso===today()?' aria-current="date"':''}>${d.getDate()}</time>${events.map(r=>`<button class="calendar-event${isDue(r)?' overdue':''}" data-lead-id="${esc(r.id)}" data-lead-status="${r.status}" aria-label="${esc(r.company)} — ${r.status}, follow-up ${date(iso)}${isDue(r)?', due or overdue':''}">${esc(r.company)}<span class="calendar-event-status">${r.status}${isDue(r)?' · Due / overdue':''}</span></button>`).join('')}</div>`;
  }
  $('follow-calendar').innerHTML=html;
  const unscheduled=leads.filter(r=>calendarStatuses.has(r.status)&&!r.follow).length;
  const selection=calendarStatuses.size===calendarStatusOptions.length?'All open statuses':calendarStatuses.size?[...calendarStatuses].join(', '):'No statuses selected';
- $('calendar-summary').textContent=`${scheduled.length?`${scheduled.length} follow-up${scheduled.length===1?'':'s'}`:'No follow-ups'} in ${label}. ${selection}. ${unscheduled} matching lead${unscheduled===1?' has':'s have'} no follow-up date. Closed leads are excluded. Colors match the lead-status chart. Due / overdue follow-ups are labeled.`;
+ $('calendar-summary').textContent=`${scheduled.length?`${scheduled.length} follow-up${scheduled.length===1?'':'s'}`:'No follow-ups'} in this ${calendarView}. ${selection}. ${unscheduled} matching lead${unscheduled===1?' has':'s have'} no follow-up date. Closed leads are excluded. Weeks run Monday–Sunday. Companies beginning with “Demo” are fictional calendar examples.`;
 }
 $('calendar-status-filters').onclick=e=>{
  const button=e.target.closest('button[data-calendar-status]');if(!button)return;
@@ -222,9 +246,15 @@ $('calendar-status-filters').onclick=e=>{
  else calendarStatuses.add(status);
  renderCalendar();
 };
-$('calendar-prev').onclick=()=>{calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()-1,1);renderCalendar()};
-$('calendar-next').onclick=()=>{calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+1,1);renderCalendar()};
-$('calendar-today').onclick=()=>{calendarMonth=new Date(new Date().getFullYear(),new Date().getMonth(),1);renderCalendar()};
+function moveCalendar(direction){
+ calendarMonth=calendarView==='week'?new Date(calendarMonth.getFullYear(),calendarMonth.getMonth(),calendarMonth.getDate()+7*direction):new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+direction,1);
+ renderCalendar();
+}
+$('calendar-prev').onclick=()=>moveCalendar(-1);
+$('calendar-next').onclick=()=>moveCalendar(1);
+$('calendar-today').onclick=()=>{calendarMonth=new Date();renderCalendar()};
+$('calendar-weekly').onclick=()=>{calendarView='week';renderCalendar()};
+$('calendar-monthly').onclick=()=>{calendarView='month';renderCalendar()};
 $('follow-calendar').onclick=e=>{const button=e.target.closest('button[data-lead-id]');if(button)openEditor(leads.find(r=>r.id===button.dataset.leadId))};
 render();
 

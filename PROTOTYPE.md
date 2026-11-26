@@ -1,3 +1,11 @@
+# Weekly follow-up calendar
+
+The calendar starts in Weekly view (Monday–Sunday). Monthly expands the date grid; previous/next and This week/This month adapt to the view. Status filtering and Closed exclusions apply to both.
+
+Four additional fictional Demo leads have follow-up dates on Monday, Tuesday, Thursday and Friday of the week when this update is first opened. They are appended once with stable IDs and a separate migration marker. Existing records and follow-up dates are not overwritten, including ID collisions. Deleted demo leads do not reappear on reload. Later weeks do not silently reschedule saved records. Fresh samples now contain 20 leads. Explicit Reset restores the complete sample set.
+
+---
+
 # Current pipeline controls
 
 The time-spent section and its log form are removed from the interface for now. Existing work-hour storage is neither modified nor deleted. Pipeline progress has one month button that expands to a 12-month selector with year navigation, then collapses after a selection. The separate demo-month shortcuts are removed. The stage chart spans the available width. Demo stage-entry data still covers the current month and six previous months. Historical implementation notes below refer to previous versions.
