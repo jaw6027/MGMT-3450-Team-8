@@ -50,7 +50,7 @@ $('reset').onclick=()=>{if(confirm('Replace browser changes with the original fi
 $('export').onclick=()=>{const cell=v=>'"'+String(/^[=+\-@\t\r]/.test(v)?"'"+v:v).replaceAll('"','""')+'"';const text=[['FICTIONAL SAMPLE DATA - NOT DOMINO PLASTICS RECORDS'],['Company','Industry','Status','Last contact','Next follow-up','Contact name','Email','Phone','Interaction notes and next steps','Product interest (unverified)','Estimated opportunity value (USD, fictional)'],...filtered().map(r=>[r.company,r.industry,r.status,r.contact,r.follow,...Object.keys(crmDefaults).map(k=>r[k]??'')])].map(r=>r.map(cell).join(',')).join('\r\n');const a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.href=url;a.download='fictional-marketing-leads.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 function renderLeadViews(){
  const counts=statuses.map(status=>leads.filter(r=>r.status===status).length);
- $('status-chart').innerHTML=statuses.map((status,i)=>`<div class="bar-row"><span>${status}</span><div class="track"><div class="bar" style="width:${counts[i]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[i]}</strong></div>`).join('');
+ $('status-chart').innerHTML=statuses.map((status,i)=>`<div class="bar-row" data-lead-status="${status}"><span>${status}</span><div class="track"><div class="bar" style="width:${counts[i]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[i]}</strong></div>`).join('');
  $('status-chart').setAttribute('aria-label',statuses.map((status,i)=>`${status}: ${counts[i]} leads`).join(', '));
  $('status-summary').textContent=`${leads.length} total leads • Chart and calendar use all leads; filters below apply to the table and CSV.`;
  renderCalendar();
@@ -71,11 +71,11 @@ function renderCalendar(){
   if(day<1||day>days){html+='<div class="calendar-day empty" aria-hidden="true"></div>';continue}
   const iso=prefix+String(day).padStart(2,'0');
   const events=(byDate.get(iso)||[]).sort((a,b)=>a.company.localeCompare(b.company));
-  html+=`<div class="calendar-day${iso===today()?' is-today':''}"><time class="calendar-date" datetime="${iso}"${iso===today()?' aria-current="date"':''}>${day}</time>${events.map(r=>`<button class="calendar-event${isDue(r)?' overdue':''}" data-lead-id="${esc(r.id)}" aria-label="${esc(r.company)} — follow-up ${date(iso)}${isDue(r)?', due or overdue':''}">${esc(r.company)}</button>`).join('')}</div>`;
+  html+=`<div class="calendar-day${iso===today()?' is-today':''}"><time class="calendar-date" datetime="${iso}"${iso===today()?' aria-current="date"':''}>${day}</time>${events.map(r=>`<button class="calendar-event${isDue(r)?' overdue':''}" data-lead-id="${esc(r.id)}" data-lead-status="${r.status}" aria-label="${esc(r.company)} — ${r.status}, follow-up ${date(iso)}${isDue(r)?', due or overdue':''}">${esc(r.company)}<span class="calendar-event-status">${r.status}${isDue(r)?' · Due / overdue':''}</span></button>`).join('')}</div>`;
  }
  $('follow-calendar').innerHTML=html;
  const unscheduled=leads.filter(r=>r.status!=='Closed'&&!r.follow).length;
- $('calendar-summary').textContent=`${scheduled.length?`${scheduled.length} follow-up${scheduled.length===1?'':'s'}`:'No follow-ups'} in ${label}. ${unscheduled} open lead${unscheduled===1?' has':'s have'} no follow-up date. Closed leads are excluded. Amber = due or overdue; green = upcoming.`;
+ $('calendar-summary').textContent=`${scheduled.length?`${scheduled.length} follow-up${scheduled.length===1?'':'s'}`:'No follow-ups'} in ${label}. ${unscheduled} open lead${unscheduled===1?' has':'s have'} no follow-up date. Closed leads are excluded. Colors match the lead-status chart. Due / overdue follow-ups are labeled.`;
 }
 $('calendar-prev').onclick=()=>{calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()-1,1);renderCalendar()};
 $('calendar-next').onclick=()=>{calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+1,1);renderCalendar()};
