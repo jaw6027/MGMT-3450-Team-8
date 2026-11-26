@@ -15,6 +15,7 @@ const recyclingSamples=[
 ].map((r,i)=>({...crmDefaults,id:r[0],company:r[1],industry:'Recycling',status:r[2],contact:r[2]==='New'?'':'2026-11-12',follow:r[2]==='New'?'':'2026-11-20',contactName:['Casey Sample','Riley Example','Jordan Demo','Avery Sample'][i],email:`recycling${i+1}@example.com`,phone:`202-555-01${20+i}`,productInterest:r[3],opportunityValue:r[4],notes:'Fictional prospect. Next step: discuss feedstock consistency, contamination limits and application testing. Product suitability is unverified.'}));
 seed.push(...recyclingSamples);
 const $=id=>document.getElementById(id),key='polymer-prospect-v1';let leads=structuredClone(seed),editing=null;const statuses=['New','Contacted','Qualified','Proposal','Closed'];
+const calendarStatuses=new Set(statuses);
 let calendarMonth=new Date(new Date().getFullYear(),new Date().getMonth(),1);
 function valid(r){return r&&Object.keys(crmDefaults).every(k=>r[k]===undefined||typeof r[k]==='string')&&typeof r.id==='string'&&typeof r.company==='string'&&industries.some(i=>i.name===r.industry)&&statuses.includes(r.status)&&['contact','follow'].every(k=>typeof r[k]==='string'&&(!r[k]||/^\d{4}-\d{2}-\d{2}$/.test(r[k])))}
 try{
@@ -52,7 +53,7 @@ function renderLeadViews(){
  const counts=statuses.map(status=>leads.filter(r=>r.status===status).length);
  $('status-chart').innerHTML=statuses.map((status,i)=>`<div class="bar-row" data-lead-status="${status}"><span>${status}</span><div class="track"><div class="bar" style="width:${counts[i]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[i]}</strong></div>`).join('');
  $('status-chart').setAttribute('aria-label',statuses.map((status,i)=>`${status}: ${counts[i]} leads`).join(', '));
- $('status-summary').textContent=`${leads.length} total leads • Chart and calendar use all leads; filters below apply to the table and CSV.`;
+ $('status-summary').textContent=`${leads.length} total leads • Chart uses all leads. Calendar has its own status filters; filters below apply to the table and CSV.`;
  renderCalendar();
 }
 function renderCalendar(){
@@ -61,7 +62,11 @@ function renderCalendar(){
  $('calendar-month').textContent=label;
  $('follow-calendar').setAttribute('aria-label',`Follow-ups for ${label}`);
  const prefix=`${year}-${String(month+1).padStart(2,'0')}-`;
- const scheduled=leads.filter(r=>r.status!=='Closed'&&r.follow.startsWith(prefix));
+ const scheduled=leads.filter(r=>calendarStatuses.has(r.status)&&r.follow.startsWith(prefix));
+ for(const button of $('calendar-status-filters').querySelectorAll('button')){
+  const status=button.dataset.calendarStatus;
+  button.setAttribute('aria-pressed',String(status==='all'?calendarStatuses.size===statuses.length:calendarStatuses.has(status)));
+ }
  const byDate=new Map();
  for(const lead of scheduled){if(!byDate.has(lead.follow))byDate.set(lead.follow,[]);byDate.get(lead.follow).push(lead)}
  const days=new Date(year,month+1,0).getDate(),offset=new Date(year,month,1).getDay();
@@ -74,9 +79,19 @@ function renderCalendar(){
   html+=`<div class="calendar-day${iso===today()?' is-today':''}"><time class="calendar-date" datetime="${iso}"${iso===today()?' aria-current="date"':''}>${day}</time>${events.map(r=>`<button class="calendar-event${isDue(r)?' overdue':''}" data-lead-id="${esc(r.id)}" data-lead-status="${r.status}" aria-label="${esc(r.company)} — ${r.status}, follow-up ${date(iso)}${isDue(r)?', due or overdue':''}">${esc(r.company)}<span class="calendar-event-status">${r.status}${isDue(r)?' · Due / overdue':''}</span></button>`).join('')}</div>`;
  }
  $('follow-calendar').innerHTML=html;
- const unscheduled=leads.filter(r=>r.status!=='Closed'&&!r.follow).length;
- $('calendar-summary').textContent=`${scheduled.length?`${scheduled.length} follow-up${scheduled.length===1?'':'s'}`:'No follow-ups'} in ${label}. ${unscheduled} open lead${unscheduled===1?' has':'s have'} no follow-up date. Closed leads are excluded. Colors match the lead-status chart. Due / overdue follow-ups are labeled.`;
+ const unscheduled=leads.filter(r=>calendarStatuses.has(r.status)&&!r.follow).length;
+ const selection=calendarStatuses.size===statuses.length?'All statuses':calendarStatuses.size?[...calendarStatuses].join(', '):'No statuses selected';
+ $('calendar-summary').textContent=`${scheduled.length?`${scheduled.length} follow-up${scheduled.length===1?'':'s'}`:'No follow-ups'} in ${label}. ${selection}. ${unscheduled} matching lead${unscheduled===1?' has':'s have'} no follow-up date. Colors match the lead-status chart. Due / overdue follow-ups are labeled.`;
 }
+$('calendar-status-filters').onclick=e=>{
+ const button=e.target.closest('button[data-calendar-status]');if(!button)return;
+ const status=button.dataset.calendarStatus;
+ if(status==='all'){for(const value of statuses)calendarStatuses.add(value)}
+ else if(calendarStatuses.size===statuses.length){calendarStatuses.clear();calendarStatuses.add(status)}
+ else if(calendarStatuses.has(status))calendarStatuses.delete(status);
+ else calendarStatuses.add(status);
+ renderCalendar();
+};
 $('calendar-prev').onclick=()=>{calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()-1,1);renderCalendar()};
 $('calendar-next').onclick=()=>{calendarMonth=new Date(calendarMonth.getFullYear(),calendarMonth.getMonth()+1,1);renderCalendar()};
 $('calendar-today').onclick=()=>{calendarMonth=new Date(new Date().getFullYear(),new Date().getMonth(),1);renderCalendar()};

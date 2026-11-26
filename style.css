@@ -28,3 +28,10 @@ main>[data-page]:not(#overview){margin-top:24px}
 @media(max-width:600px){.lead-visuals{margin-inline:12px;gap:16px}.calendar-controls{padding-inline:12px}}
 
 #customers .table-wrap{position:relative}
+
+.calendar-panel>.panel-head{align-items:flex-start;flex-wrap:wrap}
+.calendar-status-filters{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;margin-left:auto}
+.calendar-status-filters button{font-size:11px;padding:5px 9px;border-radius:20px;background:white;color:var(--status-ink,var(--ink));border:1px solid var(--status-color,var(--line))}
+.calendar-status-filters button[aria-pressed="true"]{background:var(--status-tint,#e7f2e9);box-shadow:inset 0 0 0 1px var(--status-color,var(--green));font-weight:bold}
+.calendar-status-filters button[aria-pressed="false"]{border-style:dashed}
+@media(max-width:600px){.calendar-status-filters{justify-content:flex-start;margin-left:0}}
