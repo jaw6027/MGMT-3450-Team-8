@@ -1,3 +1,11 @@
+# Simplified monthly pipeline
+
+Pipeline progress now uses one month picker. The chart counts distinct prospects entering each stage in that month, using recorded additions and status changes. A prospect entering the same stage twice in one month is counted once for that stage; it can count in multiple stages as it progresses. Baseline observations, reopen observations and sample resets do not count as entries. Removed summary cards: Status changes, Prospects changing status, and New leads recorded. The detailed activity log is collapsed by default. Work-time calculations and logging are unchanged, with the selected month supplying the reporting period. Saved leads, history and time logs are retained.
+
+The historical notes below describe previous iterations; the current reporting controls are monthly only.
+
+---
+
 # Fictional pipeline preview
 
 “Show fictional demo data” switches pipeline analytics and work-hour summaries to a separate in-memory sample. It starts enabled only when there are no saved work entries or added/moved pipeline events; otherwise it preserves the view of saved activity by default. Switch it off to log real prototype work time. It does not change the lead table, calendar, lead storage, pipeline history or saved work logs. Demo samples are regenerated relative to today so Weekly/Monthly/Yearly views can be compared. Labels identify them as fictional. Sample time: the current week contains 6 hours across 2 demo prospects (3 hours average); older examples demonstrate wider periods. Demo entries cannot be saved via the time form.

@@ -154,19 +154,11 @@ $('time-entry-form').onsubmit=e=>{
  renderPipeline();
 };
 
-$('pipeline-date').value=today();
+$('pipeline-month').value=today().slice(0,7);
 function pipelinePeriod(){
- const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec($('pipeline-date').value||today());
- const start=new Date(Number(match[1]),Number(match[2])-1,Number(match[3]));
- const mode=$('pipeline-period').value;
- if(mode==='week')start.setDate(start.getDate()-(start.getDay()+6)%7);
- if(mode==='month')start.setDate(1);
- if(mode==='year')start.setMonth(0,1);
- const end=new Date(start);
- if(mode==='week')end.setDate(end.getDate()+7);
- if(mode==='month')end.setMonth(end.getMonth()+1);
- if(mode==='year')end.setFullYear(end.getFullYear()+1);
- return {start,end};
+ const selected=$('pipeline-month').value||today().slice(0,7);
+ const [year,month]=selected.split('-').map(Number);
+ return {start:new Date(year,month-1,1),end:new Date(year,month,1)};
 }
 function renderPipeline(){
  const demo=showingPipelineDemo(),history=demo?pipelineDemoData().history:pipelineHistory,events=history?.events||[];
@@ -174,20 +166,19 @@ function renderPipeline(){
  if(!demo)for(const lead of leads)names.set(lead.id,lead.company);
  const {start,end}=pipelinePeriod(),fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
  const relevant=events.filter(e=>Date.parse(e.at)>=start.getTime()&&Date.parse(e.at)<end.getTime());
- const moves=relevant.filter(e=>e.kind==='moved'),added=relevant.filter(e=>e.kind==='added');
+ const entries=relevant.filter(e=>e.kind==='moved'||e.kind==='added');
  const covered=history&&start.getTime()>=Date.parse(history.startedAt);
- $('pipeline-range').textContent=`${fmt(start)} – ${fmt(new Date(end.getTime()-1))} • Local timezone${$('pipeline-period').value==='week'?' • Monday–Sunday':''}${covered?'':' • Partial or unavailable history before tracking began'}`;
+ $('pipeline-range').textContent=`${fmt(start)} – ${fmt(new Date(end.getTime()-1))} • Local timezone${covered?'':' • Partial or unavailable history before tracking began'}`;
  $('pipeline-notice').classList.toggle('is-demo',demo);
  $('pipeline-notice').textContent=demo?'FICTIONAL DEMO — These stage changes and hours are made up to demonstrate the dashboard. They are not company results and are never saved into your records.':pipelineWarning||(history?`Tracking began ${new Date(history.startedAt).toLocaleString()}. Earlier stage dates are unknown. Starting records are observations, not conversions. History stays in this browser; keep the same file location/origin. Closed does not distinguish a won sale from a lost lead.`:'History is unavailable.');
- $('pipeline-metrics').innerHTML=[['Status changes',moves.length],['Prospects changing status',new Set(moves.map(e=>e.leadId)).size],['New leads recorded',added.length]].map(([label,count])=>`<div class="pipeline-metric">${label}<strong>${count}</strong></div>`).join('');
- const counts=statuses.map(status=>[...moves,...added].filter(e=>e.to===status).length);
+ const counts=statuses.map(status=>new Set(entries.filter(e=>e.to===status).map(e=>e.leadId)).size);
  $('pipeline-chart').innerHTML=statuses.map((status,i)=>`<div class="bar-row" data-lead-status="${status}"><span>${status}</span><div class="track"><div class="bar" style="width:${counts[i]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[i]}</strong></div>`).join('');
- $('pipeline-chart').setAttribute('aria-label',statuses.map((status,i)=>`${status}: ${counts[i]} recorded entries`).join(', '));
+ $('pipeline-chart').setAttribute('aria-label',statuses.map((status,i)=>`${status}: ${counts[i]} prospects entered this month`).join(', '));
  renderProspectTime(start,end);
  const activity={baseline:'First observed; earlier stage start unknown',sync:'Observed after reopening; exact change time unknown',reset:'Sample reset; not a sales movement',added:'Lead added',moved:'Status changed',removed:'Lead deleted; history retained'};
  $('pipeline-events').innerHTML=[...relevant].reverse().map(e=>`<tr><td>${esc(new Date(e.at).toLocaleString())}</td><td>${esc(names.get(e.leadId)||e.company)}</td><td>${e.from||'—'}</td><td>${e.to||'—'}</td><td>${activity[e.kind]}</td></tr>`).join('')||'<tr><td colspan="5">No recorded activity across prospects for this period. Earlier activity may be unknown.</td></tr>';
 }
-for(const id of ['pipeline-period','pipeline-date'])$(id).addEventListener('change',renderPipeline);
+$('pipeline-month').addEventListener('change',renderPipeline);
 
 function save(reason='save'){try{localStorage.setItem(key,JSON.stringify(leads));recordPipeline(reason)}catch(e){$('storage-message').textContent='Could not save to this browser. Export your leads before leaving.'}render()}
 function filtered(){return leads.filter(r=>(!$('search').value||r.company.toLowerCase().includes($('search').value.toLowerCase()))&&(!$('industry').value||r.industry===$('industry').value)&&(!$('status').value||r.status===$('status').value)&&(!$('due').checked||isDue(r)))}
