@@ -1,3 +1,9 @@
+# Fictional pipeline preview
+
+“Show fictional demo data” switches pipeline analytics and work-hour summaries to a separate in-memory sample. It starts enabled only when there are no saved work entries or added/moved pipeline events; otherwise it preserves the view of saved activity by default. Switch it off to log real prototype work time. It does not change the lead table, calendar, lead storage, pipeline history or saved work logs. Demo samples are regenerated relative to today so Weekly/Monthly/Yearly views can be compared. Labels identify them as fictional. Sample time: the current week contains 6 hours across 2 demo prospects (3 hours average); older examples demonstrate wider periods. Demo entries cannot be saved via the time form.
+
+---
+
 # Logged work hours
 
 The current-stage watchlist has been replaced by manual work-time logging. Log a prospect, date of work (not in the future) and 0.01–24 decimal hours per entry. These are actual entered work hours, never elapsed stage time. Entries are appended under the separate `polymer-prospect-v1-work-hours-v1` storage key. Existing leads and pipeline events are not rewritten. Invalid pre-existing logs are preserved; logging pauses if they cannot be read.

@@ -77,6 +77,21 @@ try{
  if(raw===null){pipelineHistory={version:1,startedAt:new Date().toISOString(),events:[]};recordPipeline('baseline')}
  else{const stored=JSON.parse(raw);if(!validPipeline(stored))throw new Error('Invalid history');pipelineHistory=stored;recordPipeline('sync')}
 }catch(e){pipelineWarning='Pipeline history is unavailable or invalid. Existing stored data was left unchanged; history recording is paused.';pipelineHistory=null}
+// Fictional preview data exists in memory only and never enters saved lead/log keys.
+function pipelineDemoData(){
+ const now=new Date(),day=offset=>{const d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+offset,10);return d};
+ const monday=day(-(now.getDay()+6)%7),lastWeek=new Date(monday);lastWeek.setDate(lastWeek.getDate()-7);
+ const lastMonth=new Date(now.getFullYear(),now.getMonth()-1,1,10),lastYear=new Date(now.getFullYear()-1,0,1,10);
+ const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+ const prospects=[{id:'demo-aster',company:'Aster Packaging Works (demo)'},{id:'demo-meadow',company:'Meadowline Growers (demo)'},{id:'demo-ridge',company:'Ridgeform Materials (demo)'}];
+ const event=(i,at,from,to,kind='moved')=>({leadId:prospects[i].id,company:prospects[i].company,at:at.toISOString(),from,to,kind});
+ const events=[event(0,lastYear,null,'New','added'),event(1,lastMonth,null,'New','added'),event(2,lastMonth,null,'New','added'),event(0,lastWeek,'New','Contacted'),event(1,monday,'New','Contacted'),event(0,day(0),'Contacted','Qualified'),event(1,day(0),'Contacted','Proposal'),event(2,day(0),'New','Contacted')].sort((a,b)=>Date.parse(a.at)-Date.parse(b.at));
+ const work=(i,at,hundredths)=>({id:`demo-time-${i}-${at.getTime()}-${hundredths}`,leadId:prospects[i].id,company:prospects[i].company,date:iso(at),hundredths,createdAt:at.toISOString()});
+ const entries=[work(0,monday,150),work(0,day(0),50),work(1,day(0),400),work(0,lastWeek,100),work(2,lastMonth,200),work(1,lastYear,300)];
+ return {prospects,history:{version:1,startedAt:lastYear.toISOString(),events},entries};
+}
+function showingPipelineDemo(){return $('pipeline-demo').checked}
+
 // Actual work time is entered explicitly and saved separately from leads/history.
 const timeLogKey=key+'-work-hours-v1';
 let timeLog={version:1,entries:[]},timeLogWarning='';
@@ -92,34 +107,39 @@ try{
  const raw=localStorage.getItem(timeLogKey);
  if(raw!==null){const stored=JSON.parse(raw);if(!validTimeLog(stored))throw new Error('Invalid time log');timeLog=stored}
 }catch(e){timeLog=null;timeLogWarning='Existing time logs could not be read. They were left unchanged; new entries are paused.'}
+$('pipeline-demo').checked=!!pipelineHistory&&!!timeLog&&!timeLog.entries.length&&!(pipelineHistory?.events||[]).some(e=>e.kind==='moved'||e.kind==='added');
+$('pipeline-demo').addEventListener('change',renderPipeline);
 $('time-date').value=today();
 $('time-date').max=today();
 function renderProspectTime(start,end){
- const entries=timeLog?.entries||[],names=new Map(entries.map(e=>[e.leadId,e.company]));
- for(const lead of leads)names.set(lead.id,lead.company);
+ const demo=showingPipelineDemo(),sample=demo?pipelineDemoData():null;
+ const entries=demo?sample.entries:timeLog?.entries||[],names=new Map(entries.map(e=>[e.leadId,e.company]));
+ const displayedLeads=demo?sample.prospects:leads;
+ for(const lead of displayedLeads)names.set(lead.id,lead.company);
  const selected=$('time-lead').value;
  $('time-lead').innerHTML='<option value="">Choose a prospect</option>'+[...leads].sort((a,b)=>a.company.localeCompare(b.company)).map(lead=>`<option value="${esc(lead.id)}">${esc(lead.company)}</option>`).join('');
  if(leads.some(lead=>lead.id===selected))$('time-lead').value=selected;
  $('time-date').max=today();
- $('time-entry-form').querySelector('button').disabled=!timeLog;
- $('time-storage-message').textContent=timeLogWarning;
+ $('time-entry-form').hidden=demo;
+ $('time-entry-form').querySelector('button').disabled=demo||!timeLog;
+ $('time-storage-message').textContent=demo?'Fictional example hours. Switch off demo data to log your own time.':timeLogWarning;
  const inPeriod=entries.filter(e=>{const [y,m,d]=e.date.split('-').map(Number),at=new Date(y,m-1,d).getTime();return at>=start.getTime()&&at<end.getTime()});
  const totals=new Map(),periodTotals=new Map();
  for(const e of entries)totals.set(e.leadId,(totals.get(e.leadId)||0)+e.hundredths);
  for(const e of inPeriod)periodTotals.set(e.leadId,(periodTotals.get(e.leadId)||0)+e.hundredths);
  const total=inPeriod.reduce((sum,e)=>sum+e.hundredths,0),count=periodTotals.size;
  const hours=value=>(value/100).toFixed(2);
- $('prospect-time-metrics').innerHTML=[['Total hours this period',timeLog?hours(total):'—'],['Prospects with logged time',timeLog?count:'—'],['Average hours / prospect',timeLog&&count?hours(total/count):'—']].map(([label,value])=>`<div>${label}<strong>${value}</strong></div>`).join('');
+ $('prospect-time-metrics').innerHTML=[['Total hours this period',(demo||timeLog)?hours(total):'—'],['Prospects with logged time',(demo||timeLog)?count:'—'],['Average hours / prospect',(demo||timeLog)&&count?hours(total/count):'—']].map(([label,value])=>`<div>${label}<strong>${value}</strong></div>`).join('');
  $('time-average-definition').textContent=count?`Average = ${hours(total)} hours ÷ ${count} prospect${count===1?'':'s'} with logged time in this period. Prospects without logs are excluded.`:'No work hours logged for this period. Log actual hours to calculate an average; no hours are inferred from stage history.';
  const ids=[...names.keys()].sort((a,b)=>(periodTotals.get(b)||0)-(periodTotals.get(a)||0)||names.get(a).localeCompare(names.get(b)));
- $('prospect-time-rows').innerHTML=ids.map(id=>`<tr><td>${esc(names.get(id))}${leads.some(r=>r.id===id)?'':' (deleted)'}</td><td>${periodTotals.has(id)?hours(periodTotals.get(id)):'—'}</td><td>${totals.has(id)?hours(totals.get(id)):'—'}</td></tr>`).join('')||'<tr><td colspan="3">No prospects or logged time yet.</td></tr>';
+ $('prospect-time-rows').innerHTML=ids.map(id=>`<tr><td>${esc(names.get(id))}${displayedLeads.some(r=>r.id===id)?'':' (deleted)'}</td><td>${periodTotals.has(id)?hours(periodTotals.get(id)):'—'}</td><td>${totals.has(id)?hours(totals.get(id)):'—'}</td></tr>`).join('')||'<tr><td colspan="3">No prospects or logged time yet.</td></tr>';
  $('time-entry-rows').innerHTML=[...inPeriod].sort((a,b)=>b.date.localeCompare(a.date)||b.createdAt.localeCompare(a.createdAt)).map(e=>`<tr><td>${date(e.date)}</td><td>${esc(names.get(e.leadId)||e.company)}</td><td>${hours(e.hundredths)}</td></tr>`).join('')||'<tr><td colspan="3">No time entries in this period.</td></tr>';
 }
 $('time-date').oninput=()=>$('time-date').setCustomValidity('');
 $('time-hours').oninput=()=>$('time-hours').setCustomValidity('');
 $('time-entry-form').onsubmit=e=>{
  e.preventDefault();
- if(!timeLog)return;
+ if(showingPipelineDemo()||!timeLog)return;
  const lead=leads.find(r=>r.id===$('time-lead').value),workDate=$('time-date').value,hours=Number($('time-hours').value),hundredths=Math.round(hours*100);
  if(!lead)return;
  if(!validWorkDate(workDate)||workDate>today()){$('time-date').setCustomValidity('Choose a valid work date on or before today.');$('time-date').reportValidity();return}
@@ -149,15 +169,16 @@ function pipelinePeriod(){
  return {start,end};
 }
 function renderPipeline(){
- const history=pipelineHistory,events=history?.events||[];
+ const demo=showingPipelineDemo(),history=demo?pipelineDemoData().history:pipelineHistory,events=history?.events||[];
  const names=new Map(events.map(e=>[e.leadId,e.company]));
- for(const lead of leads)names.set(lead.id,lead.company);
+ if(!demo)for(const lead of leads)names.set(lead.id,lead.company);
  const {start,end}=pipelinePeriod(),fmt=d=>d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
  const relevant=events.filter(e=>Date.parse(e.at)>=start.getTime()&&Date.parse(e.at)<end.getTime());
  const moves=relevant.filter(e=>e.kind==='moved'),added=relevant.filter(e=>e.kind==='added');
  const covered=history&&start.getTime()>=Date.parse(history.startedAt);
  $('pipeline-range').textContent=`${fmt(start)} – ${fmt(new Date(end.getTime()-1))} • Local timezone${$('pipeline-period').value==='week'?' • Monday–Sunday':''}${covered?'':' • Partial or unavailable history before tracking began'}`;
- $('pipeline-notice').textContent=pipelineWarning||(history?`Tracking began ${new Date(history.startedAt).toLocaleString()}. Earlier stage dates are unknown. Starting records are observations, not conversions. History stays in this browser; keep the same file location/origin. Closed does not distinguish a won sale from a lost lead.`:'History is unavailable.');
+ $('pipeline-notice').classList.toggle('is-demo',demo);
+ $('pipeline-notice').textContent=demo?'FICTIONAL DEMO — These stage changes and hours are made up to demonstrate the dashboard. They are not company results and are never saved into your records.':pipelineWarning||(history?`Tracking began ${new Date(history.startedAt).toLocaleString()}. Earlier stage dates are unknown. Starting records are observations, not conversions. History stays in this browser; keep the same file location/origin. Closed does not distinguish a won sale from a lost lead.`:'History is unavailable.');
  $('pipeline-metrics').innerHTML=[['Status changes',moves.length],['Prospects changing status',new Set(moves.map(e=>e.leadId)).size],['New leads recorded',added.length]].map(([label,count])=>`<div class="pipeline-metric">${label}<strong>${count}</strong></div>`).join('');
  const counts=statuses.map(status=>[...moves,...added].filter(e=>e.to===status).length);
  $('pipeline-chart').innerHTML=statuses.map((status,i)=>`<div class="bar-row" data-lead-status="${status}"><span>${status}</span><div class="track"><div class="bar" style="width:${counts[i]/Math.max(1,...counts)*100}%"></div></div><strong>${counts[i]}</strong></div>`).join('');
